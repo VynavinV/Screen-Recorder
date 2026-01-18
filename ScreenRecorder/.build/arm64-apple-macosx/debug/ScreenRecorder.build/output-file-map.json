@@ -1,0 +1,12 @@
+{
+  "": {
+    "swift-dependencies": "/Users/vynavin/Documents/Projects/Screen Recorder/ScreenRecorder/.build/arm64-apple-macosx/debug/ScreenRecorder.build/master.swiftdeps"
+  },
+  "/Users/vynavin/Documents/Projects/Screen Recorder/ScreenRecorder/Sources/main.swift": {
+    "dependencies": "/Users/vynavin/Documents/Projects/Screen Recorder/ScreenRecorder/.build/arm64-apple-macosx/debug/ScreenRecorder.build/main.d",
+    "object": "/Users/vynavin/Documents/Projects/Screen Recorder/ScreenRecorder/.build/arm64-apple-macosx/debug/ScreenRecorder.build/main.swift.o",
+    "swiftmodule": "/Users/vynavin/Documents/Projects/Screen Recorder/ScreenRecorder/.build/arm64-apple-macosx/debug/ScreenRecorder.build/main~partial.swiftmodule",
+    "swift-dependencies": "/Users/vynavin/Documents/Projects/Screen Recorder/ScreenRecorder/.build/arm64-apple-macosx/debug/ScreenRecorder.build/main.swiftdeps",
+    "diagnostics": "/Users/vynavin/Documents/Projects/Screen Recorder/ScreenRecorder/.build/arm64-apple-macosx/debug/ScreenRecorder.build/main.dia"
+  }
+}
