@@ -1,0 +1,66 @@
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+.Trashes
+
+# Swift / SPM / build
+.build/
+.swiftpm/
+Packages/
+.swift-version
+
+# Xcode / IDE
+DerivedData/
+*.xcworkspace
+*.xcuserdatad
+*.xcuserdata
+*.xcodeproj/xcuserdata/
+*.xcsettings
+
+# App bundles / artifacts
+*.app
+ScreenRecorder.app/
+*.dSYM/
+*.ipa
+
+# Editor / web build artifacts
+Editor/node_modules/
+Editor/dist/
+Editor/.cache/
+Editor/*.log
+
+# Temporary / logs
+*.log
+console.txt
+*.tmp
+*.temp
+
+# Generated exports / recordings (session folders)
+Video_*/
+session-*/
+studio_export_*.webm
+*.webm
+*.mp4
+*.mov
+
+# IDE configs
+.vscode/
+.idea/
+*.sublime-workspace
+*.sublime-project
+
+# Swap files
+*.swp
+*.swo
+
+# Package managers
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Misc
+Thumbs.db
+
+# Keep this file under source control
+# Add project-specific ignores above as needed
