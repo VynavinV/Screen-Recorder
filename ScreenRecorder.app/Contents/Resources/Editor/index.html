@@ -25,6 +25,31 @@
             gap: 14px;
             overflow-y: auto;
         }
+
+        /* Sidebar resizer */
+        .resizer {
+            width: 28px; /* larger hit area */
+            cursor: ew-resize;
+            background: linear-gradient(90deg, rgba(255,255,255,0.02), rgba(255,255,255,0.03));
+            transition: background 0.12s, box-shadow 0.12s, transform 0.12s;
+            -webkit-user-select: none;
+            -webkit-touch-callout: none;
+            height: 100vh;
+            align-self: stretch;
+            position: relative;
+            z-index: 1000; /* ensure on top */
+            touch-action: none;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            box-shadow: inset -1px 0 0 rgba(0,0,0,0.5);
+            pointer-events: auto;
+        }
+        .resizer:hover { background: linear-gradient(90deg, rgba(255,255,255,0.06), rgba(255,255,255,0.12)); box-shadow: inset -2px 0 10px rgba(0,0,0,0.45); transform: translateX(0); }
+        .resizer:active { background: linear-gradient(90deg, rgba(255,255,255,0.08), rgba(255,255,255,0.14)); }
+        .resizer:focus { outline: 2px solid rgba(102,126,234,0.85); }
+        .resizer::before { content: ''; display: block; width: 8px; height: 56px; border-radius: 4px; background: repeating-linear-gradient(90deg, rgba(255,255,255,0.18) 0 4px, rgba(255,255,255,0) 4px 8px); }
+        .resizer::after { content: ''; position: absolute; left: 0; right: 0; top: 0; bottom: 0; pointer-events: none; }
         .logo { font-size: 22px; font-weight: 700; background: linear-gradient(90deg, #667eea, #764ba2); -webkit-background-clip: text; -webkit-text-fill-color: transparent; padding: 8px 0; }
         .section { background: rgba(255,255,255,0.05); border-radius: 10px; padding: 12px; }
         .section-title { font-size: 11px; text-transform: uppercase; letter-spacing: 1px; color: rgba(255,255,255,0.5); margin-bottom: 10px; }
@@ -1092,8 +1117,8 @@ document.getElementById('exportBtn').onclick = async () => {
         const useWebCodecs = false;
 
         // Create a canvas to render the composite
-        const exportWidth = 1920;
-        const exportHeight = 1080;
+        const exportWidth = videoClone.videoWidth;
+        const exportHeight = videoClone.videoHeight;
         const canvas = document.createElement('canvas');
         canvas.width = exportWidth;
         canvas.height = exportHeight;
@@ -1459,6 +1484,71 @@ document.getElementById('exportBtn').onclick = async () => {
         setTimeout(() => modal.classList.remove('show'), 3000);
     }
 };
+
+// Sidebar resizer behavior: drag / touch / keyboard support, min/max, and persistence
+(function() {
+    const resizer = document.getElementById('sidebarResizer');
+    const sidebar = document.querySelector('.sidebar');
+    if (!resizer || !sidebar) return;
+
+    const MIN = 180; // minimum sidebar width
+    const MAX = 720; // maximum sidebar width
+
+    // Restore saved width
+    const saved = localStorage.getItem('sidebarWidth');
+    if (saved) sidebar.style.width = saved;
+
+    let isResizing = false;
+
+    const start = (clientX) => {
+        isResizing = true;
+        document.body.style.cursor = 'ew-resize';
+        resizer.classList.add('active');
+    };
+
+    const move = (clientX) => {
+        if (!isResizing) return;
+        const rect = sidebar.getBoundingClientRect();
+        const width = Math.min(MAX, Math.max(MIN, Math.round(clientX - rect.left)));
+        sidebar.style.width = width + 'px';
+    };
+
+    const end = () => {
+        if (!isResizing) return;
+        isResizing = false;
+        document.body.style.cursor = '';
+        resizer.classList.remove('active');
+        localStorage.setItem('sidebarWidth', sidebar.style.width);
+    };
+
+    // Visual cursor on hover (some platforms need explicit set)
+    resizer.addEventListener('mouseenter', () => { if (!isResizing) document.body.style.cursor = 'ew-resize'; });
+    resizer.addEventListener('mouseleave', () => { if (!isResizing) document.body.style.cursor = ''; });
+
+    resizer.addEventListener('mousedown', (e) => { e.preventDefault(); start(e.clientX); });
+    document.addEventListener('mousemove', (e) => move(e.clientX));
+    document.addEventListener('mouseup', end);
+
+    resizer.addEventListener('touchstart', (e) => { e.preventDefault(); start(e.touches[0].clientX); }, { passive: false });
+    document.addEventListener('touchmove', (e) => { if (!isResizing) return; move(e.touches[0].clientX); }, { passive: false });
+    document.addEventListener('touchend', end);
+
+    // Ensure cursor is reset when resizing ends elsewhere
+    document.addEventListener('mouseleave', () => { if (!isResizing) document.body.style.cursor = ''; });
+
+    // Double-click to reset to default
+    resizer.addEventListener('dblclick', () => { sidebar.style.width = ''; localStorage.removeItem('sidebarWidth'); });
+
+    // Keyboard accessibility
+    resizer.addEventListener('keydown', (e) => {
+        const cur = parseInt(getComputedStyle(sidebar).width, 10);
+        if (e.key === 'ArrowLeft') { const w = Math.max(MIN, cur - 10); sidebar.style.width = w + 'px'; localStorage.setItem('sidebarWidth', sidebar.style.width); e.preventDefault(); }
+        if (e.key === 'ArrowRight') { const w = Math.min(MAX, cur + 10); sidebar.style.width = w + 'px'; localStorage.setItem('sidebarWidth', sidebar.style.width); e.preventDefault(); }
+        if (e.key === 'Home') { sidebar.style.width = MIN + 'px'; localStorage.setItem('sidebarWidth', sidebar.style.width); e.preventDefault(); }
+        if (e.key === 'End') { sidebar.style.width = MAX + 'px'; localStorage.setItem('sidebarWidth', sidebar.style.width); e.preventDefault(); }
+    });
+})();
+
 </script>
 </body>
 </html>

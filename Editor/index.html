@@ -7,17 +7,19 @@
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Segoe UI', Roboto, sans-serif;
             background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
             min-height: 100vh;
             color: white;
             overflow-x: hidden;
+            -webkit-font-smoothing: antialiased;
         }
         .app { display: flex; height: 100vh; }
         .sidebar {
             width: 280px;
             background: rgba(0,0,0,0.4);
             backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
             padding: 16px;
             border-right: 1px solid rgba(255,255,255,0.1);
             display: flex;
@@ -25,6 +27,31 @@
             gap: 14px;
             overflow-y: auto;
         }
+
+        /* Sidebar resizer */
+        .resizer {
+            width: 28px;
+            cursor: ew-resize;
+            background: linear-gradient(90deg, rgba(255,255,255,0.02), rgba(255,255,255,0.03));
+            transition: background 0.12s, box-shadow 0.12s, transform 0.12s;
+            -webkit-user-select: none;
+            -webkit-touch-callout: none;
+            height: 100vh;
+            align-self: stretch;
+            position: relative;
+            z-index: 1000;
+            touch-action: none;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            box-shadow: inset -1px 0 0 rgba(0,0,0,0.5);
+            pointer-events: auto;
+        }
+        .resizer:hover { background: linear-gradient(90deg, rgba(255,255,255,0.06), rgba(255,255,255,0.12)); box-shadow: inset -2px 0 10px rgba(0,0,0,0.45); transform: translateX(0); }
+        .resizer:active { background: linear-gradient(90deg, rgba(255,255,255,0.08), rgba(255,255,255,0.14)); }
+        .resizer:focus { outline: 2px solid rgba(102,126,234,0.85); }
+        .resizer::before { content: ''; display: block; width: 8px; height: 56px; border-radius: 4px; background: repeating-linear-gradient(90deg, rgba(255,255,255,0.18) 0 4px, rgba(255,255,255,0) 4px 8px); }
+        .resizer::after { content: ''; position: absolute; left: 0; right: 0; top: 0; bottom: 0; pointer-events: none; }
         .logo { font-size: 22px; font-weight: 700; background: linear-gradient(90deg, #667eea, #764ba2); -webkit-background-clip: text; -webkit-text-fill-color: transparent; padding: 8px 0; }
         .section { background: rgba(255,255,255,0.05); border-radius: 10px; padding: 12px; }
         .section-title { font-size: 11px; text-transform: uppercase; letter-spacing: 1px; color: rgba(255,255,255,0.5); margin-bottom: 10px; }
@@ -63,24 +90,103 @@
         }
         .webcam-wrap.square { border-radius: 10px; }
         .webcam-wrap video { width: 100%; height: 100%; object-fit: cover; }
-        .controls {
+        
+        /* Apple-style Trim Controls */
+        .trim-controls {
             display: flex; align-items: center; gap: 14px; padding: 14px;
             background: rgba(0,0,0,0.4); backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
             border-radius: 12px; margin-top: 14px;
         }
         .play-btn {
             width: 42px; height: 42px; border-radius: 50%;
             background: linear-gradient(135deg, #667eea, #764ba2);
             border: none; cursor: pointer; display: flex; align-items: center; justify-content: center;
-            flex-shrink: 0;
+            flex-shrink: 0; transition: transform 0.2s, box-shadow 0.2s;
         }
+        .play-btn:hover { transform: scale(1.05); box-shadow: 0 4px 15px rgba(102,126,234,0.4); }
         .play-btn svg { fill: white; width: 16px; height: 16px; }
-        .timeline-wrap { flex: 1; position: relative; }
-        .timeline { height: 6px; background: rgba(255,255,255,0.2); border-radius: 3px; cursor: pointer; position: relative; }
-        .timeline-progress { height: 100%; background: linear-gradient(90deg, #667eea, #764ba2); border-radius: 3px; width: 0%; pointer-events: none; }
+        
+        .timeline-container { flex: 1; position: relative; }
+        .timeline {
+            height: 6px; background: rgba(255,255,255,0.2); border-radius: 3px;
+            cursor: pointer; position: relative; overflow: visible;
+        }
+        .timeline-progress {
+            height: 100%; background: linear-gradient(90deg, #667eea, #764ba2);
+            border-radius: 3px; width: 0%; pointer-events: none;
+        }
+        
+        /* Trim Handles - Apple Style */
+        .trim-handle {
+            position: absolute; top: 50%; transform: translateY(-50%);
+            width: 14px; height: 24px; background: #ffd700;
+            border-radius: 3px; cursor: ew-resize; z-index: 10;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+            transition: transform 0.15s, box-shadow 0.15s;
+        }
+        .trim-handle:hover { transform: translateY(-50%) scale(1.1); box-shadow: 0 4px 12px rgba(255,215,0,0.4); }
+        .trim-handle:active { transform: translateY(-50%) scale(1.15); }
+        .trim-handle::before {
+            content: ''; position: absolute; top: 50%; left: 50%;
+            transform: translate(-50%, -50%);
+            width: 0; height: 0;
+            border-left: 4px solid transparent;
+            border-right: 4px solid transparent;
+        }
+        .trim-handle.left::before { border-bottom: 6px solid #333; }
+        .trim-handle.right::before { border-top: 6px solid #333; }
+        
+        .trim-handle.left { left: 0; }
+        .trim-handle.right { right: 0; }
+        
+        /* Trimmed Area Highlight + dimmed gutters */
+        .trim-area {
+            position: absolute; top: 0; height: 100%;
+            background: linear-gradient(90deg, rgba(255,215,0,0.20), rgba(255,215,0,0.12));
+            pointer-events: none;
+            border-radius: 3px;
+            box-shadow: 0 4px 18px rgba(255,215,0,0.06), inset 0 1px 0 rgba(255,255,255,0.06);
+            transition: left 120ms ease, width 120ms ease, opacity 160ms;
+            opacity: 1;
+        }
+        .trim-dim {
+            position: absolute; top: -6px; height: 18px; pointer-events: none;
+            background: rgba(0,0,0,0.45); transition: left 120ms ease, width 120ms ease, opacity 160ms;
+            border-radius: 3px;
+            z-index: 5;
+        }
+        .trim-dim.left { left: 0; }
+        .trim-dim.right { right: 0; }
+        .trim-dim.hidden { opacity: 0; visibility: hidden; }
+        
+        /* Trim Time Display */
+        .trim-times {
+            display: flex; justify-content: space-between;
+            font-size: 11px; color: rgba(255,255,255,0.6);
+            margin-top: 6px; font-family: monospace;
+        }
+        .trim-time { display: flex; align-items: center; gap: 4px; }
+        .trim-time.active { color: #ffd700; font-weight: 600; }
+        
+        /* Trim Buttons */
+        .trim-actions {
+            display: flex; gap: 8px; margin-top: 12px;
+        }
+        .trim-btn {
+            flex: 1; padding: 8px 12px; border-radius: 6px;
+            background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.2);
+            color: white; font-size: 12px; font-weight: 500; cursor: pointer;
+            transition: all 0.2s;
+        }
+        .trim-btn:hover { background: rgba(255,255,255,0.15); border-color: rgba(255,255,255,0.3); }
+        .trim-btn.primary { background: linear-gradient(135deg, #667eea, #764ba2); border: none; }
+        .trim-btn.primary:hover { transform: translateY(-1px); box-shadow: 0 4px 12px rgba(102,126,234,0.4); }
+        
         .timeline-clicks { position: absolute; top: -6px; left: 0; right: 0; height: 18px; pointer-events: none; }
         .click-marker { position: absolute; width: 10px; height: 10px; background: #f5576c; border-radius: 50%; top: 4px; transform: translateX(-50%); border: 2px solid white; }
         .time { font-family: monospace; font-size: 12px; color: rgba(255,255,255,0.7); flex-shrink: 0; }
+        
         .slider-row { display: flex; flex-direction: column; gap: 5px; margin-top: 8px; }
         .slider-label { display: flex; justify-content: space-between; font-size: 12px; color: rgba(255,255,255,0.8); }
         .slider { width: 100%; height: 4px; border-radius: 2px; -webkit-appearance: none; background: rgba(255,255,255,0.2); cursor: pointer; }
@@ -142,6 +248,17 @@
             <button class="btn" onclick="autoDiscoverFiles()" style="margin-bottom:6px;" title="Select a folder containing session subfolders (each with screen.mp4, webcam.mp4, clicks.json)">Auto-Discover Files</button>
             <div style="font-size:11px;color:#888;margin-bottom:12px;">Select a folder with session subfolders containing screen.mp4, webcam.mp4, and clicks.json files</div>
             <div class="status" id="fileStatus">No files loaded</div>
+        </div>
+
+        <div class="section">
+            <div class="section-title">Video Trimming</div>
+            <div class="toggle-row"><span>Enable Trimming</span><div class="toggle" id="trimToggle"></div></div>
+            <div class="trim-actions" id="trimActions" style="opacity:0.5; pointer-events:none;">
+                <button class="trim-btn" onclick="setTrimStart()">Set Start</button>
+                <button class="trim-btn" onclick="setTrimEnd()">Set End</button>
+                <button class="trim-btn" onclick="resetTrim()">Reset</button>
+            </div>
+            <div class="status" id="trimStatus" style="margin-top:8px;">Trimming disabled</div>
         </div>
 
         <div class="section">
@@ -239,15 +356,24 @@
                 <div class="captions-box" id="captionsBox"></div>
             </div>
         </div>
-        <div class="controls">
+        <div class="trim-controls">
             <button class="play-btn" id="playBtn">
                 <svg viewBox="0 0 24 24" id="playIcon"><path d="M8 5v14l11-7z"/></svg>
             </button>
-            <div class="timeline-wrap">
+            <div class="timeline-container">
                 <div class="timeline" id="timeline">
                     <div class="timeline-progress" id="progress"></div>
+                    <div class="trim-dim left hidden" id="trimDimLeft"></div>
+                    <div class="trim-dim right hidden" id="trimDimRight"></div>
+                    <div class="trim-area" id="trimArea"></div>
+                    <div class="trim-handle left" id="trimHandleLeft"></div>
+                    <div class="trim-handle right" id="trimHandleRight"></div>
                 </div>
                 <div class="timeline-clicks" id="clickMarkers"></div>
+                <div class="trim-times">
+                    <div class="trim-time" id="trimStartTime">Start: 0:00</div>
+                    <div class="trim-time" id="trimEndTime">End: 0:00</div>
+                </div>
             </div>
             <span class="time" id="timeDisp">0:00 / 0:00</span>
         </div>
@@ -280,6 +406,13 @@ const timeDisp = document.getElementById('timeDisp');
 const fileStatus = document.getElementById('fileStatus');
 const clickStatus = document.getElementById('clickStatus');
 
+// Trim state
+let trimEnabled = false;
+let trimStart = 0;
+let trimEnd = 0;
+let isDraggingTrim = false;
+let dragTarget = null;
+
 let playing = false;
 let zoomEnabled = true;
 let zoomLevel = 2;
@@ -306,13 +439,9 @@ const params = new URLSearchParams(location.search);
 
 function formatFileName(filename) {
     if (!filename) return '';
-    // Remove file extension
     let name = filename.replace(/\.[^/.]+$/, '');
-    // Replace underscores and hyphens with spaces
     name = name.replace(/[_-]/g, ' ');
-    // Capitalize first letter of each word
     name = name.replace(/\b\w/g, l => l.toUpperCase());
-    // Truncate if too long
     return name.length > 25 ? name.substring(0, 22) + '...' : name;
 }
 
@@ -393,12 +522,165 @@ function renderClickMarkers() {
 mainVideo.onloadedmetadata = () => {
     renderClickMarkers();
     updateFileStatus();
+    initializeTrim();
 };
+
+// Trim functionality
+function initializeTrim() {
+    if (!mainVideo.duration) return;
+    trimStart = 0;
+    trimEnd = mainVideo.duration;
+    updateTrimUI();
+    // Seek the player to the trim start so user can preview immediately
+    try { mainVideo.currentTime = trimStart; } catch (e) {}
+}
+
+function updateTrimUI() {
+    const duration = mainVideo.duration || 1;
+    const startPercent = (trimStart / duration) * 100;
+    const endPercent = (trimEnd / duration) * 100;
+    
+    const leftHandle = document.getElementById('trimHandleLeft');
+    const rightHandle = document.getElementById('trimHandleRight');
+    const trimArea = document.getElementById('trimArea');
+    const dimLeft = document.getElementById('trimDimLeft');
+    const dimRight = document.getElementById('trimDimRight');
+
+    leftHandle.style.left = startPercent + '%';
+    rightHandle.style.left = endPercent + '%';
+    
+    trimArea.style.left = startPercent + '%';
+    trimArea.style.width = (endPercent - startPercent) + '%';
+    
+    // Update dimmed gutters
+    if (dimLeft && dimRight) {
+        dimLeft.style.width = startPercent + '%';
+        dimLeft.style.left = '0%';
+        dimLeft.classList.toggle('hidden', !trimEnabled);
+        
+        dimRight.style.left = endPercent + '%';
+        dimRight.style.width = (100 - endPercent) + '%';
+        dimRight.classList.toggle('hidden', !trimEnabled);
+    }
+
+    document.getElementById('trimStartTime').textContent = 'Start: ' + fmt(trimStart);
+    document.getElementById('trimEndTime').textContent = 'End: ' + fmt(trimEnd);
+    
+    const trimStatus = document.getElementById('trimStatus');
+    if (trimEnabled) {
+        const trimDuration = trimEnd - trimStart;
+        trimStatus.textContent = `Trim: ${fmt(trimStart)} - ${fmt(trimEnd)} (${fmt(trimDuration)})`;
+    } else {
+        trimStatus.textContent = 'Trimming disabled';
+    }
+}
+
+function setTrimStart() {
+    trimStart = mainVideo.currentTime;
+    if (trimStart >= trimEnd) {
+        trimEnd = Math.min(mainVideo.duration, trimStart + 1);
+    }
+    updateTrimUI();
+}
+
+function setTrimEnd() {
+    trimEnd = mainVideo.currentTime;
+    if (trimEnd <= trimStart) {
+        trimStart = Math.max(0, trimEnd - 1);
+    }
+    updateTrimUI();
+}
+
+function resetTrim() {
+    trimStart = 0;
+    trimEnd = mainVideo.duration || 0;
+    updateTrimUI();
+}
+
+// Trim handle dragging
+const trimHandleLeft = document.getElementById('trimHandleLeft');
+const trimHandleRight = document.getElementById('trimHandleRight');
+const timeline = document.getElementById('timeline');
+
+function startTrimDrag(e, handle) {
+    if (!trimEnabled) return;
+    isDraggingTrim = true;
+    dragTarget = handle;
+    e.preventDefault();
+    e.stopPropagation();
+}
+
+function handleTrimDrag(e) {
+    if (!isDraggingTrim || !trimEnabled) return;
+    
+    const rect = timeline.getBoundingClientRect();
+    const x = e.clientX || (e.touches && e.touches[0].clientX);
+    const percent = Math.max(0, Math.min(1, (x - rect.left) / rect.width));
+    const time = percent * (mainVideo.duration || 1);
+    
+    if (dragTarget === 'left') {
+        trimStart = Math.min(time, trimEnd - 0.1);
+    } else {
+        trimEnd = Math.max(time, trimStart + 0.1);
+    }
+    
+    updateTrimUI();
+}
+
+function endTrimDrag() {
+    // When user finishes dragging a trim handle, seek the player to that handle for preview
+    if (isDraggingTrim && trimEnabled) {
+        if (dragTarget === 'left') {
+            mainVideo.currentTime = trimStart;
+        } else if (dragTarget === 'right') {
+            mainVideo.currentTime = trimEnd;
+        }
+    }
+    isDraggingTrim = false;
+    dragTarget = null;
+}
+
+trimHandleLeft.addEventListener('mousedown', (e) => startTrimDrag(e, 'left'));
+trimHandleRight.addEventListener('mousedown', (e) => startTrimDrag(e, 'right'));
+document.addEventListener('mousemove', handleTrimDrag);
+document.addEventListener('mouseup', endTrimDrag);
+
+trimHandleLeft.addEventListener('touchstart', (e) => startTrimDrag(e, 'left'), { passive: false });
+trimHandleRight.addEventListener('touchstart', (e) => startTrimDrag(e, 'right'), { passive: false });
+document.addEventListener('touchmove', handleTrimDrag, { passive: false });
+document.addEventListener('touchend', endTrimDrag);
+
+// Trim toggle
+document.getElementById('trimToggle').addEventListener('click', function() {
+    this.classList.toggle('on');
+    trimEnabled = this.classList.contains('on');
+    
+    const trimActions = document.getElementById('trimActions');
+    const trimHandles = document.querySelectorAll('.trim-handle');
+    const trimArea = document.getElementById('trimArea');
+    
+    if (trimEnabled) {
+        trimActions.style.opacity = '1';
+        trimActions.style.pointerEvents = 'auto';
+        trimHandles.forEach(h => h.style.display = 'block');
+        trimArea.style.display = 'block';
+        initializeTrim();
+    } else {
+        trimActions.style.opacity = '0.5';
+        trimActions.style.pointerEvents = 'none';
+        trimHandles.forEach(h => h.style.display = 'none');
+        trimArea.style.display = 'none';
+        updateTrimUI();
+    }
+});
+
+// Initially hide trim handles
+document.querySelectorAll('.trim-handle').forEach(h => h.style.display = 'none');
+document.getElementById('trimArea').style.display = 'none';
 
 async function autoDiscoverFiles() {
     console.log('Auto-discover button clicked');
     try {
-        // Check if directory selection is supported
         const testInput = document.createElement('input');
         testInput.type = 'file';
         if (!('webkitdirectory' in testInput)) {
@@ -406,7 +688,6 @@ async function autoDiscoverFiles() {
             return;
         }
         
-        // Prompt user to select the parent folder containing all sessions
         const parentInput = document.createElement('input');
         parentInput.type = 'file';
         parentInput.webkitdirectory = true;
@@ -420,7 +701,6 @@ async function autoDiscoverFiles() {
                 return;
             }
             const files = Array.from(e.target.files);
-            // Find all unique session folders
             const sessionFolders = {};
             files.forEach(f => {
                 const parts = f.webkitRelativePath.split('/');
@@ -433,14 +713,12 @@ async function autoDiscoverFiles() {
 
             console.log('Session folders found:', Object.keys(sessionFolders));
 
-            // Show a list of sessions to pick from
             const sessionNames = Object.keys(sessionFolders);
             if (sessionNames.length === 0) {
                 fileStatus.textContent = 'No sessions found in selected folder. Make sure you select a folder containing session subfolders with screen.mp4, webcam.mp4, and clicks.json files.';
                 return;
             }
 
-            // Create a modal to pick a session
             let modal = document.getElementById('sessionModal');
             if (!modal) {
                 modal = document.createElement('div');
@@ -470,7 +748,6 @@ async function autoDiscoverFiles() {
                 btn.style.margin = '6px 0';
                 btn.onclick = () => {
                     modal.style.display = 'none';
-                    // Load files from selected session
                     const sessionFiles = sessionFolders[name];
                     const screenFile = sessionFiles.find(f => f.name === 'screen.mp4');
                     const webcamFile = sessionFiles.find(f => f.name === 'webcam.mp4');
@@ -530,17 +807,14 @@ document.getElementById('clicksFile').onchange = e => {
         reader.onload = (e) => {
             try {
                 const data = JSON.parse(e.target.result);
-                // Ensure it's an array
                 clicks = Array.isArray(data) ? data : [data];
                 console.log('JSON Parsed - Clicks loaded:', clicks.length, 'items');
                 console.log('Video duration:', mainVideo.duration);
                 console.log('First click:', clicks[0]);
                 
-                // Always render immediately
                 clickStatus.textContent = clicks.length + ' click points detected';
                 renderClickMarkers();
                 
-                // Also re-render when video loads if it hasn't yet
                 if (!mainVideo.duration) {
                     mainVideo.addEventListener('loadedmetadata', () => {
                         console.log('Video loaded, re-rendering clicks');
@@ -559,7 +833,6 @@ document.getElementById('clicksFile').onchange = e => {
 document.getElementById('screenFile').onchange = e => {
     if (e.target.files[0]) {
         mainVideo.src = URL.createObjectURL(e.target.files[0]);
-        // Don't clear clicks - preserve any previously imported click data
         if (clicks.length === 0) {
             clickStatus.textContent = '0 click points';
         }
@@ -579,7 +852,6 @@ function fmt(s) { return Math.floor(s/60) + ':' + String(Math.floor(s%60)).padSt
 
 let animationFrameId = null;
 
-// Smooth animation loop - runs every frame while playing
 function animationLoop() {
     if (!playing) {
         animationFrameId = null;
@@ -588,11 +860,22 @@ function animationLoop() {
     
     const t = mainVideo.currentTime;
     
-    // Apply zoom effect every frame for smooth animation
+    // Check if we've reached trim end
+    if (trimEnabled && t >= trimEnd) {
+        mainVideo.pause();
+        webcamVideo.pause();
+        playing = false;
+        document.getElementById('playIcon').innerHTML = '<path d="M8 5v14l11-7z"/>';
+        if (animationFrameId) {
+            cancelAnimationFrame(animationFrameId);
+            animationFrameId = null;
+        }
+        return;
+    }
+    
     const zoomState = calculateZoom(t);
     applyZoom(zoomState);
     
-    // Continue the loop
     animationFrameId = requestAnimationFrame(animationLoop);
 }
 
@@ -606,10 +889,13 @@ document.getElementById('playBtn').onclick = () => {
             animationFrameId = null;
         }
     } else {
+        // If trimming is enabled, start from trim start if we're outside the trim range
+        if (trimEnabled && (mainVideo.currentTime < trimStart || mainVideo.currentTime >= trimEnd)) {
+            mainVideo.currentTime = trimStart;
+        }
         mainVideo.play(); webcamVideo.play();
         document.getElementById('playIcon').innerHTML = '<path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/>';
         playing = true;
-        // Start the smooth animation loop
         if (!animationFrameId) {
             animationFrameId = requestAnimationFrame(animationLoop);
         }
@@ -630,41 +916,30 @@ mainVideo.ontimeupdate = () => {
         });
     }
     
-    // Also apply zoom here for scrubbing/seeking when not playing
     if (!playing) {
         const zoomState = calculateZoom(t);
         applyZoom(zoomState);
     }
 };
 
-// Custom easing function with adjustable strength
 function ease(t, strength = 0.5) {
-    // strength 0 = linear, 1 = very smooth (ease-in-out)
     if (strength === 0) return t;
     const s = strength;
-    // Blend between linear and smooth ease-in-out
     const smooth = t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2;
     return t * (1 - s) + smooth * s;
 }
 
-// Calculate zoom state for a given time
 function calculateZoom(t) {
     if (!zoomEnabled || clicks.length === 0) {
         return { scale: 1, originX: 50, originY: 50, active: false };
     }
 
-    // Sort clicks by time and filter out long clicks (swipes, drags, holds, etc.)
-    // Only zoom for clicks with duration <= threshold
-    // Each click must have a .duration property (in seconds)
     const sortedClicks = [...clicks]
         .filter(c => (typeof c.duration === 'number' ? c.duration : 1) <= clickThreshold)
         .sort((a, b) => a.time - b.time);
-    // If no valid clicks, but we are zoomed in, smoothly zoom out
+    
     if (sortedClicks.length === 0) {
-        // Find if we are currently zoomed in (by checking previous state)
-        // We'll just always zoom out if t > 0 for simplicity
         if (t > 0) {
-            // Use a fake click at the last known position (or center)
             const lastClick = clicks.length > 0 ? clicks[clicks.length - 1] : {x:0.5, y:0.5};
             const progress = Math.min(1, t / zoomOutSpeed);
             const easedProgress = ease(progress, easingStrength);
@@ -676,8 +951,8 @@ function calculateZoom(t) {
             return { scale: 1, originX: 50, originY: 50, active: false };
         }
     }
-    // Build click clusters - group clicks that should be panned between
-    const CLUSTER_GAP = 2.0; // If clicks are within 2 seconds, group them
+    
+    const CLUSTER_GAP = 2.0;
     const clusters = [];
     let currentCluster = [sortedClicks[0]];
     for (let i = 1; i < sortedClicks.length; i++) {
@@ -691,7 +966,6 @@ function calculateZoom(t) {
     }
     clusters.push(currentCluster);
     
-    // Find which cluster we're in
     for (const cluster of clusters) {
         const firstClick = cluster[0];
         const lastClick = cluster[cluster.length - 1];
@@ -699,29 +973,24 @@ function calculateZoom(t) {
         const clusterStart = firstClick.time - zoomAnticipate;
         const zoomInEnd = clusterStart + zoomInSpeed;
         
-        // Calculate cluster end: after last click's hold + zoom out
-        const lastClickReachTime = zoomInEnd; // We reach first click after zoom-in
-        let totalTime = zoomInSpeed; // zoom-in time
+        const lastClickReachTime = zoomInEnd;
+        let totalTime = zoomInSpeed;
         
-        // Add time for each click in cluster
         for (let i = 0; i < cluster.length; i++) {
-            totalTime += zoomDuration; // hold at each click
+            totalTime += zoomDuration;
             if (i < cluster.length - 1) {
-                // Pan to next click - apply pan speed multiplier
                 const basePanTime = Math.max(0.3, cluster[i + 1].time - cluster[i].time);
                 const panTime = basePanTime / panSpeed;
                 totalTime += panTime;
             }
         }
-        totalTime += zoomOutSpeed; // zoom-out time
+        totalTime += zoomOutSpeed;
         
         const clusterEnd = clusterStart + totalTime;
         
         if (t >= clusterStart && t < clusterEnd) {
-            // We're in this cluster
             let elapsedInCluster = t - clusterStart;
             
-            // Phase 1: Zoom-in to first click
             if (elapsedInCluster < zoomInSpeed) {
                 const progress = elapsedInCluster / zoomInSpeed;
                 const easedProgress = ease(progress, easingStrength);
@@ -733,11 +1002,9 @@ function calculateZoom(t) {
             
             elapsedInCluster -= zoomInSpeed;
             
-            // Phase 2-N: Hold at each click and pan to next
             for (let i = 0; i < cluster.length; i++) {
                 const click = cluster[i];
                 
-                // Hold at this click
                 if (elapsedInCluster < zoomDuration) {
                     return {
                         scale: zoomLevel,
@@ -749,15 +1016,14 @@ function calculateZoom(t) {
                 }
                 elapsedInCluster -= zoomDuration;
                 
-                // Pan to next click (if exists)
                 if (i < cluster.length - 1) {
                     const nextClick = cluster[i + 1];
                     const basePanDuration = Math.max(0.3, nextClick.time - click.time);
-                    const panDuration = basePanDuration / panSpeed; // Apply pan speed multiplier
+                    const panDuration = basePanDuration / panSpeed;
                     
                     if (elapsedInCluster < panDuration) {
                         const progress = elapsedInCluster / panDuration;
-                        const easedProgress = ease(progress, panEasing); // Use separate pan easing
+                        const easedProgress = ease(progress, panEasing);
                         const fromX = click.x * 100;
                         const fromY = click.y * 100;
                         const toX = nextClick.x * 100;
@@ -774,7 +1040,6 @@ function calculateZoom(t) {
                 }
             }
             
-            // Phase Final: Zoom-out from last click
             if (elapsedInCluster < zoomOutSpeed) {
                 const progress = elapsedInCluster / zoomOutSpeed;
                 const easedProgress = ease(progress, easingStrength);
@@ -806,17 +1071,28 @@ mainVideo.onended = () => {
         cancelAnimationFrame(animationFrameId);
         animationFrameId = null;
     }
-    // Reset zoom when video ends
     mainVideo.style.transform = '';
     mainVideo.style.transformOrigin = 'center center';
+    // If trimming is enabled, reset playhead to trim start for convenient replay
+    if (trimEnabled) {
+        try { mainVideo.currentTime = trimStart; webcamVideo.currentTime = trimStart; } catch (e) {}
+    }
 };
 
 document.getElementById('timeline').onclick = e => {
+    if (isDraggingTrim) return;
+    
     const rect = e.currentTarget.getBoundingClientRect();
     const pct = (e.clientX - rect.left) / rect.width;
-    mainVideo.currentTime = pct * mainVideo.duration;
-    webcamVideo.currentTime = pct * mainVideo.duration;
-    // Update zoom state when seeking
+    let seekTime = pct * mainVideo.duration;
+    
+    // If trimming is enabled, constrain seek to trim range
+    if (trimEnabled) {
+        seekTime = Math.max(trimStart, Math.min(trimEnd, seekTime));
+    }
+    
+    mainVideo.currentTime = seekTime;
+    webcamVideo.currentTime = seekTime;
     const zoomState = calculateZoom(mainVideo.currentTime);
     applyZoom(zoomState);
 };
@@ -933,9 +1209,8 @@ function addTestClick() {
         return;
     }
     
-    // Add a test click at current time or random time
     const time = mainVideo.currentTime || Math.random() * (mainVideo.duration || 30);
-    const x = 0.3 + Math.random() * 0.4; // Random position in center area
+    const x = 0.3 + Math.random() * 0.4;
     const y = 0.3 + Math.random() * 0.4;
     
     clicks.push({time, x, y});
@@ -971,10 +1246,8 @@ function importCaptions() {
                 try {
                     const content = e.target.result;
                     if (content.startsWith('{') || content.startsWith('[')) {
-                        // JSON format
                         captions = JSON.parse(content);
                     } else {
-                        // SRT/VTT format (simplified parser)
                         captions = parseSRT(content);
                     }
                     
@@ -992,7 +1265,6 @@ function importCaptions() {
 }
 
 function parseSRT(content) {
-    // Simple SRT parser
     const blocks = content.split('\n\n');
     return blocks.map(block => {
         const lines = block.trim().split('\n');
@@ -1013,7 +1285,6 @@ function parseSRT(content) {
 }
 
 function parseTimeString(timeStr) {
-    // Parse "00:00:10,500" format
     const parts = timeStr.replace(',', '.').split(':');
     return parseInt(parts[0]) * 3600 + parseInt(parts[1]) * 60 + parseFloat(parts[2]);
 }
@@ -1087,29 +1358,35 @@ document.getElementById('exportBtn').onclick = async () => {
     bar.style.strokeDashoffset = 201;
 
     try {
-        // WebM-only export. MP4 support removed to avoid corruption and popup prompts.
-        status.textContent = 'Using WebM export (reliable)...';
+        // Determine export duration based on trim settings
+        let exportStart = 0;
+        let exportEnd = mainVideo.duration || 0;
+        
+        if (trimEnabled) {
+            exportStart = trimStart;
+            exportEnd = trimEnd;
+            status.textContent = `Exporting trimmed video (${fmt(exportStart)} - ${fmt(exportEnd)})...`;
+        } else {
+            status.textContent = 'Exporting full video...';
+        }
+
         const useWebCodecs = false;
 
-        // Create a canvas to render the composite
-        const exportWidth = videoClone.videoWidth;
-        const exportHeight = videoClone.videoHeight;
+        const exportWidth = mainVideo.videoWidth;
+        const exportHeight = mainVideo.videoHeight;
         const canvas = document.createElement('canvas');
         canvas.width = exportWidth;
         canvas.height = exportHeight;
         const ctx = canvas.getContext('2d');
 
-        // Clone videos for seeking with better buffering
         const videoClone = document.createElement('video');
         videoClone.src = mainVideo.src;
-        videoClone.muted = false;  // Don't mute to capture audio
+        videoClone.muted = false;
         videoClone.preload = 'auto';
         
-        // Ensure video is fully loaded and buffered
         await new Promise((resolve, reject) => {
             videoClone.onloadeddata = async () => {
-                // Pre-buffer the video by seeking through it
-                videoClone.currentTime = 0;
+                videoClone.currentTime = exportStart;
                 await new Promise(r => {
                     const onSeeked = () => {
                         videoClone.removeEventListener('seeked', onSeeked);
@@ -1127,27 +1404,25 @@ document.getElementById('exportBtn').onclick = async () => {
         if (webcamVideo.src && webcamVisible) {
             webcamClone = document.createElement('video');
             webcamClone.src = webcamVideo.src;
-            webcamClone.muted = false;  // Don't mute to capture audio
+            webcamClone.muted = false;
             webcamClone.preload = 'auto';
             
-            // Ensure webcam video is fully loaded
             await new Promise((resolve, reject) => {
                 webcamClone.onloadeddata = resolve;
                 webcamClone.onerror = reject;
                 webcamClone.load();
             });
+            webcamClone.currentTime = exportStart;
         }
 
         const webcamSize = parseInt(document.getElementById('webcamSizeSlider').value);
         const webcamSquare = document.getElementById('webcamShapeToggle').classList.contains('on');
 
-        const duration = videoClone.duration;
-        const fps = 60;  // Increased fps for smoother video
+        const duration = exportEnd - exportStart;
+        const fps = 60;
         const totalFrames = Math.floor(duration * fps);
 
-        // Video frame dimensions (maintaining aspect ratio)
         const videoAspect = videoClone.videoWidth / videoClone.videoHeight;
-        // Reduce padding so the video fills more of the export canvas
         const bgPadding = showBackground ? 30 : 0;
         const gradPadding = showBackground ? 10 : 0;
         const gradRadius = showBackground ? 36 : 0;
@@ -1155,12 +1430,10 @@ document.getElementById('exportBtn').onclick = async () => {
         let gradWidth, gradHeight, gradX, gradY;
         let frameWidth, frameHeight, frameX, frameY;
         if (showBackground) {
-            // Gradient container
             gradWidth = exportWidth - bgPadding * 2;
             gradHeight = exportHeight - bgPadding * 2;
             gradX = bgPadding;
             gradY = bgPadding;
-            // Video inside gradient
             const maxWidth = gradWidth - gradPadding * 2;
             const maxHeight = gradHeight - gradPadding * 2;
             if (maxWidth / maxHeight > videoAspect) {
@@ -1173,7 +1446,6 @@ document.getElementById('exportBtn').onclick = async () => {
             frameX = gradX + (gradWidth - frameWidth) / 2;
             frameY = gradY + (gradHeight - frameHeight) / 2;
         } else {
-            // Fullscreen video
             gradWidth = gradHeight = 0;
             gradX = gradY = 0;
             frameWidth = exportWidth;
@@ -1182,22 +1454,14 @@ document.getElementById('exportBtn').onclick = async () => {
             frameY = 0;
         }
 
-        
-
         if (!useWebCodecs) {
-            // WebM path (MediaRecorder) - uses real-time playback for smooth results
             const stream = canvas.captureStream(fps);
 
-            // Mix audio from the video elements into the canvas stream so
-            // MediaRecorder captures audio. We use an AudioContext with
-            // MediaElementAudioSourceNode -> MediaStreamDestination and
-            // attach the resulting audio tracks to the canvas stream.
             try {
                 const AudioCtx = window.AudioContext || window.webkitAudioContext;
                 if (AudioCtx) {
                     const audioCtx = new AudioCtx();
                     const dest = audioCtx.createMediaStreamDestination();
-                    // Use the cloned media elements (they are loaded above)
                     try {
                         const mainSrc = audioCtx.createMediaElementSource(videoClone);
                         mainSrc.connect(dest);
@@ -1213,7 +1477,6 @@ document.getElementById('exportBtn').onclick = async () => {
                         }
                     }
 
-                    // Append audio tracks from the destination to the canvas stream
                     dest.stream.getAudioTracks().forEach(track => stream.addTrack(track));
                 }
             } catch (e) {
@@ -1230,7 +1493,7 @@ document.getElementById('exportBtn').onclick = async () => {
             
             const mediaRecorder = new MediaRecorder(stream, {
                 mimeType: mimeType,
-                videoBitsPerSecond: 50000000  // Increased bitrate for better quality
+                videoBitsPerSecond: 50000000
             });
 
             const recordedChunks = [];
@@ -1246,13 +1509,10 @@ document.getElementById('exportBtn').onclick = async () => {
             });
 
             mediaRecorder.start(100);
-            status.textContent = 'Recording video (WebM)...';
 
-            // Use real-time playback for smooth WebM export
-            videoClone.currentTime = 0;
-            if (webcamClone) webcamClone.currentTime = 0;
+            videoClone.currentTime = exportStart;
+            if (webcamClone) webcamClone.currentTime = exportStart;
             
-            // Sync webcam with main video
             const syncWebcam = () => {
                 if (webcamClone && !webcamClone.paused) {
                     const targetTime = Math.min(videoClone.currentTime, webcamClone.duration - 0.1);
@@ -1262,20 +1522,18 @@ document.getElementById('exportBtn').onclick = async () => {
                 }
             };
             
-            // Render loop using requestAnimationFrame for smooth capture
             let lastRenderTime = 0;
             const renderInterval = 1000 / fps;
             let frameCount = 0;
             
             const renderFrame = () => {
                 const currentTime = videoClone.currentTime;
+                const elapsedTime = currentTime - exportStart;
                 syncWebcam();
 
                 ctx.clearRect(0, 0, exportWidth, exportHeight);
 
                 if (showBackground) {
-                    // Fill the full canvas with the background so transparent/rounded
-                    // corners don't reveal black during export.
                     if (currentBg.includes('gradient')) {
                         const fullGrad = ctx.createLinearGradient(0, 0, exportWidth, exportHeight);
                         const colors = currentBg.match(/#[a-fA-F0-9]{6}/g) || ['#667eea', '#764ba2', '#f093fb'];
@@ -1288,7 +1546,6 @@ document.getElementById('exportBtn').onclick = async () => {
                     }
                     ctx.fillRect(0, 0, exportWidth, exportHeight);
 
-                    // Now draw the inner rounded gradient container on top for the framed look
                     ctx.save();
                     ctx.beginPath();
                     ctx.roundRect(gradX, gradY, gradWidth, gradHeight, gradRadius);
@@ -1346,7 +1603,6 @@ document.getElementById('exportBtn').onclick = async () => {
                     if (webcamWrap && previewCanvas) {
                         const previewRect = previewCanvas.getBoundingClientRect();
                         const wrapRect = webcamWrap.getBoundingClientRect();
-                        // Map the webcam position from preview coordinates to export canvas
                         const scaleX = exportWidth / previewRect.width;
                         const scaleY = exportHeight / previewRect.height;
                         wcX = (wrapRect.left - previewRect.left) * scaleX;
@@ -1408,32 +1664,39 @@ document.getElementById('exportBtn').onclick = async () => {
                 }
 
                 frameCount++;
-                const progressPct = (currentTime / duration) * 100;
+                // progress relative to exportStart/exportEnd
+                const pct = (exportEnd > exportStart) ? Math.min(1, Math.max(0, (currentTime - exportStart) / (exportEnd - exportStart))) : 0;
+                const progressPct = Math.round(pct * 100);
                 bar.style.strokeDashoffset = 201 - (201 * progressPct / 100);
-                status.textContent = `Recording: ${Math.round(progressPct)}% (WebM - real-time)`;
+                status.textContent = `Recording: ${progressPct}% (WebM - real-time)`;
             };
             
-            // Start playback-based recording
             await new Promise((resolve) => {
                 let animFrameId;
                 
                 const onEnded = () => {
                     cancelAnimationFrame(animFrameId);
                     videoClone.removeEventListener('ended', onEnded);
-                    mediaRecorder.stop();
+                    try { mediaRecorder.stop(); } catch (e) {}
                     resolve();
                 };
                 
                 videoClone.addEventListener('ended', onEnded);
                 
-                // Render at display refresh rate
                 const animate = () => {
                     if (videoClone.paused || videoClone.ended) return;
                     renderFrame();
+                    // stop when we've reached the export end
+                    if (videoClone.currentTime >= exportEnd - 0.001) {
+                        cancelAnimationFrame(animFrameId);
+                        videoClone.removeEventListener('ended', onEnded);
+                        try { mediaRecorder.stop(); } catch (e) {}
+                        resolve();
+                        return;
+                    }
                     animFrameId = requestAnimationFrame(animate);
                 };
                 
-                // Start playback
                 videoClone.play();
                 if (webcamClone) webcamClone.play();
                 animate();
@@ -1459,6 +1722,66 @@ document.getElementById('exportBtn').onclick = async () => {
         setTimeout(() => modal.classList.remove('show'), 3000);
     }
 };
+
+// Sidebar resizer behavior
+(function() {
+    const resizer = document.getElementById('sidebarResizer');
+    const sidebar = document.querySelector('.sidebar');
+    if (!resizer || !sidebar) return;
+
+    const MIN = 180;
+    const MAX = 720;
+
+    const saved = localStorage.getItem('sidebarWidth');
+    if (saved) sidebar.style.width = saved;
+
+    let isResizing = false;
+
+    const start = (clientX) => {
+        isResizing = true;
+        document.body.style.cursor = 'ew-resize';
+        resizer.classList.add('active');
+    };
+
+    const move = (clientX) => {
+        if (!isResizing) return;
+        const rect = sidebar.getBoundingClientRect();
+        const width = Math.min(MAX, Math.max(MIN, Math.round(clientX - rect.left)));
+        sidebar.style.width = width + 'px';
+    };
+
+    const end = () => {
+        if (!isResizing) return;
+        isResizing = false;
+        document.body.style.cursor = '';
+        resizer.classList.remove('active');
+        localStorage.setItem('sidebarWidth', sidebar.style.width);
+    };
+
+    resizer.addEventListener('mouseenter', () => { if (!isResizing) document.body.style.cursor = 'ew-resize'; });
+    resizer.addEventListener('mouseleave', () => { if (!isResizing) document.body.style.cursor = ''; });
+
+    resizer.addEventListener('mousedown', (e) => { e.preventDefault(); start(e.clientX); });
+    document.addEventListener('mousemove', (e) => move(e.clientX));
+    document.addEventListener('mouseup', end);
+
+    resizer.addEventListener('touchstart', (e) => { e.preventDefault(); start(e.touches[0].clientX); }, { passive: false });
+    document.addEventListener('touchmove', (e) => { if (!isResizing) return; move(e.touches[0].clientX); }, { passive: false });
+    document.addEventListener('touchend', end);
+
+    document.addEventListener('mouseleave', () => { if (!isResizing) document.body.style.cursor = ''; });
+
+    resizer.addEventListener('dblclick', () => { sidebar.style.width = ''; localStorage.removeItem('sidebarWidth'); });
+
+    resizer.addEventListener('keydown', (e) => {
+        const cur = parseInt(getComputedStyle(sidebar).width, 10);
+        if (e.key === 'ArrowLeft') { const w = Math.max(MIN, cur - 10); sidebar.style.width = w + 'px'; localStorage.setItem('sidebarWidth', sidebar.style.width); e.preventDefault(); }
+        if (e.key === 'ArrowRight') { const w = Math.min(MAX, cur + 10); sidebar.style.width = w + 'px'; localStorage.setItem('sidebarWidth', sidebar.style.width); e.preventDefault(); }
+        if (e.key === 'Home') { sidebar.style.width = MIN + 'px'; localStorage.setItem('sidebarWidth', sidebar.style.width); e.preventDefault(); }
+        if (e.key === 'End') { sidebar.style.width = MAX + 'px'; localStorage.setItem('sidebarWidth', sidebar.style.width); e.preventDefault(); }
+    });
+})();
+
 </script>
 </body>
 </html>
