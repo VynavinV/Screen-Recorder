@@ -184,7 +184,37 @@
         .trim-btn.primary:hover { transform: translateY(-1px); box-shadow: 0 4px 12px rgba(102,126,234,0.4); }
         
         .timeline-clicks { position: absolute; top: -6px; left: 0; right: 0; height: 18px; pointer-events: none; }
-        .click-marker { position: absolute; width: 10px; height: 10px; background: #f5576c; border-radius: 50%; top: 4px; transform: translateX(-50%); border: 2px solid white; }
+        .click-marker {
+            position: absolute;
+            width: 12px;
+            height: 12px;
+            background: #f5576c;
+            border-radius: 50%;
+            top: 3px;
+            transform: translateX(-50%);
+            border: 2px solid white;
+            pointer-events: auto;
+            transition: transform 0.12s, box-shadow 0.12s;
+            cursor: pointer;
+        }
+        .click-marker:hover { transform: translateX(-50%) scale(1.15); box-shadow: 0 6px 18px rgba(0,0,0,0.35); }
+        .click-marker.selected {
+            background: white;
+            border-color: #f5576c;
+            box-shadow: 0 6px 18px rgba(102,126,234,0.3);
+            transform: translateX(-50%) scale(1.25);
+        }
+        .click-marker.selected::after {
+            content: '×';
+            position: absolute;
+            left: 50%;
+            top: 50%;
+            transform: translate(-50%, -50%);
+            color: #f5576c;
+            font-weight: 700;
+            font-size: 10px;
+            pointer-events: none;
+        }
         .time { font-family: monospace; font-size: 12px; color: rgba(255,255,255,0.7); flex-shrink: 0; }
         
         .slider-row { display: flex; flex-direction: column; gap: 5px; margin-top: 8px; }
@@ -508,14 +538,30 @@ function renderClickMarkers() {
     clicks.forEach((c, i) => {
         const m = document.createElement('div');
         m.className = 'click-marker';
+        m.dataset.index = i;
         const percent = (c.time / dur * 100);
         m.style.left = percent + '%';
         m.title = 'Click at ' + c.time.toFixed(1) + 's';
+        // click selects marker, double-click seeks to it
+        m.addEventListener('click', (ev) => {
+            ev.stopPropagation();
+            selectClickMarker(i);
+        });
+        m.addEventListener('dblclick', (ev) => {
+            ev.stopPropagation();
+            mainVideo.currentTime = c.time;
+            webcamVideo.currentTime = c.time;
+        });
         clickMarkers.appendChild(m);
         if (i === 0) {
             console.log('First marker:', {time: c.time, dur, percent: percent + '%'});
         }
     });
+    // update visual selection
+    document.querySelectorAll('.click-marker').forEach(el => el.classList.remove('selected'));
+    if (selectedClickIndex != null && clickMarkers.children[selectedClickIndex]) {
+        clickMarkers.children[selectedClickIndex].classList.add('selected');
+    }
     console.log('Rendered', clicks.length, 'markers to', clickMarkers);
 }
 
@@ -576,19 +622,33 @@ function updateTrimUI() {
 }
 
 function setTrimStart() {
+    const before = { start: trimStart, end: trimEnd };
     trimStart = mainVideo.currentTime;
     if (trimStart >= trimEnd) {
         trimEnd = Math.min(mainVideo.duration, trimStart + 1);
     }
     updateTrimUI();
+    const after = { start: trimStart, end: trimEnd };
+    pushAction({
+        undo: () => { trimStart = before.start; trimEnd = before.end; updateTrimUI(); try { mainVideo.currentTime = trimStart; } catch(e){} },
+        redo: () => { trimStart = after.start; trimEnd = after.end; updateTrimUI(); try { mainVideo.currentTime = trimStart; } catch(e){} },
+        desc: 'Set trim start'
+    });
 }
 
 function setTrimEnd() {
+    const before = { start: trimStart, end: trimEnd };
     trimEnd = mainVideo.currentTime;
     if (trimEnd <= trimStart) {
         trimStart = Math.max(0, trimEnd - 1);
     }
     updateTrimUI();
+    const after = { start: trimStart, end: trimEnd };
+    pushAction({
+        undo: () => { trimStart = before.start; trimEnd = before.end; updateTrimUI(); try { mainVideo.currentTime = trimStart; } catch(e){} },
+        redo: () => { trimStart = after.start; trimEnd = after.end; updateTrimUI(); try { mainVideo.currentTime = trimStart; } catch(e){} },
+        desc: 'Set trim end'
+    });
 }
 
 function resetTrim() {
@@ -604,6 +664,9 @@ const timeline = document.getElementById('timeline');
 
 function startTrimDrag(e, handle) {
     if (!trimEnabled) return;
+    // capture previous trim values so we can push an undo action later
+    dragPrevStart = trimStart;
+    dragPrevEnd = trimEnd;
     isDraggingTrim = true;
     dragTarget = handle;
     e.preventDefault();
@@ -630,10 +693,20 @@ function handleTrimDrag(e) {
 function endTrimDrag() {
     // When user finishes dragging a trim handle, seek the player to that handle for preview
     if (isDraggingTrim && trimEnabled) {
+        const before = { start: dragPrevStart, end: dragPrevEnd };
+        const after = { start: trimStart, end: trimEnd };
         if (dragTarget === 'left') {
-            mainVideo.currentTime = trimStart;
+            try { mainVideo.currentTime = trimStart; } catch (e) {}
         } else if (dragTarget === 'right') {
-            mainVideo.currentTime = trimEnd;
+            try { mainVideo.currentTime = trimEnd; } catch (e) {}
+        }
+        // push an undoable trim-change action if values changed
+        if (before.start !== after.start || before.end !== after.end) {
+            pushAction({
+                undo: () => { trimStart = before.start; trimEnd = before.end; updateTrimUI(); try { mainVideo.currentTime = trimStart; } catch(e){} },
+                redo: () => { trimStart = after.start; trimEnd = after.end; updateTrimUI(); try { mainVideo.currentTime = trimStart; } catch(e){} },
+                desc: 'Trim handles moved'
+            });
         }
     }
     isDraggingTrim = false;
@@ -1213,9 +1286,15 @@ function addTestClick() {
     const x = 0.3 + Math.random() * 0.4;
     const y = 0.3 + Math.random() * 0.4;
     
+    const idx = clicks.length;
     clicks.push({time, x, y});
     clickStatus.textContent = clicks.length + ' click points detected';
     renderClickMarkers();
+    pushAction({
+        undo: () => { clicks.splice(idx,1); clickStatus.textContent = clicks.length + ' click points detected'; renderClickMarkers(); },
+        redo: () => { clicks.splice(idx,0,{time,x,y}); clickStatus.textContent = clicks.length + ' click points detected'; renderClickMarkers(); },
+        desc: 'Add click'
+    });
 }
 
 function clearClicks() {
@@ -1293,9 +1372,15 @@ mainVideo.onclick = e => {
     const r = mainVideo.getBoundingClientRect();
     const x = (e.clientX - r.left) / r.width;
     const y = (e.clientY - r.top) / r.height;
+    const idx = clicks.length;
     clicks.push({time: mainVideo.currentTime, x, y});
     clickStatus.textContent = clicks.length + ' click points detected';
     renderClickMarkers();
+    pushAction({
+        undo: () => { clicks.splice(idx,1); clickStatus.textContent = clicks.length + ' click points detected'; renderClickMarkers(); },
+        redo: () => { clicks.splice(idx,0,{time: mainVideo.currentTime, x, y}); clickStatus.textContent = clicks.length + ' click points detected'; renderClickMarkers(); },
+        desc: 'Add click'
+    });
 };
 
 function renderCaptionList() {
@@ -1722,6 +1807,182 @@ document.getElementById('exportBtn').onclick = async () => {
         setTimeout(() => modal.classList.remove('show'), 3000);
     }
 };
+
+/* Undo / Redo, selection, and click deletion support */
+let undoStack = [], redoStack = [], selectedClickIndex = null, dragPrevStart = 0, dragPrevEnd = 0;
+
+function pushAction(action) {
+    undoStack.push(action);
+    redoStack = [];
+    updateUndoRedoButtons();
+    console.log('Action pushed:', action.desc || action);
+}
+
+function undo() {
+    const action = undoStack.pop();
+    if (!action) return;
+    try { action.undo(); } catch (e) { console.error('Undo failed', e); }
+    redoStack.push(action);
+    updateUndoRedoButtons();
+}
+
+function redo() {
+    const action = redoStack.pop();
+    if (!action) return;
+    try { action.redo(); } catch (e) { console.error('Redo failed', e); }
+    undoStack.push(action);
+    updateUndoRedoButtons();
+}
+
+function updateUndoRedoButtons() {
+    const u = document.getElementById('undoBtn');
+    const r = document.getElementById('redoBtn');
+    if (u) u.disabled = undoStack.length === 0;
+    if (r) r.disabled = redoStack.length === 0;
+}
+
+function selectClickMarker(index) {
+    if (index == null || index < 0 || index >= clicks.length) {
+        selectedClickIndex = null;
+    } else {
+        selectedClickIndex = index;
+    }
+    renderClickMarkers();
+
+    // create marker delete button lazily (compact, circular icon)
+    let btn = document.getElementById('markerDeleteBtn');
+    if (!btn) {
+        btn = document.createElement('button');
+        btn.id = 'markerDeleteBtn';
+        btn.className = 'btn btn-secondary';
+        btn.innerHTML = '🗑';
+        btn.title = 'Delete click';
+        btn.setAttribute('aria-label', 'Delete click');
+        btn.style.position = 'fixed';
+        btn.style.zIndex = '2000';
+        btn.style.display = 'none';
+        btn.style.padding = '0';
+        btn.style.width = '36px';
+        btn.style.height = '36px';
+        btn.style.borderRadius = '18px';
+        btn.style.fontSize = '16px';
+        btn.style.lineHeight = '36px';
+        btn.style.textAlign = 'center';
+        btn.style.boxShadow = '0 6px 18px rgba(0,0,0,0.35)';
+        btn.style.backdropFilter = 'blur(6px)';
+        btn.style.border = '1px solid rgba(255,255,255,0.06)';
+        document.body.appendChild(btn);
+        btn.onclick = () => { deleteSelectedClick(); btn.style.display = 'none'; };
+    }
+
+    if (selectedClickIndex != null && clickMarkers.children[selectedClickIndex]) {
+        const rect = clickMarkers.children[selectedClickIndex].getBoundingClientRect();
+        // position the button centered above the marker
+        const btnW = 36;
+        btn.style.left = (rect.left + rect.width / 2 - btnW / 2) + 'px';
+        btn.style.top = (rect.top - 44) + 'px';
+        btn.style.display = 'block';
+    } else {
+        btn.style.display = 'none';
+    }
+}
+
+function deleteSelectedClick() {
+    if (selectedClickIndex == null) return;
+    const idx = selectedClickIndex;
+    const removed = clicks[idx];
+    clicks.splice(idx, 1);
+    selectedClickIndex = null;
+    clickStatus.textContent = clicks.length + ' click points detected';
+    renderClickMarkers();
+    // hide marker delete button if visible
+    const mbtn = document.getElementById('markerDeleteBtn');
+    if (mbtn) mbtn.style.display = 'none';
+    pushAction({
+        undo: () => { clicks.splice(idx,0,removed); clickStatus.textContent = clicks.length + ' click points detected'; renderClickMarkers(); },
+        redo: () => { clicks.splice(idx,1); clickStatus.textContent = clicks.length + ' click points detected'; renderClickMarkers(); },
+        desc: 'Delete click'
+    });
+    updateUndoRedoButtons();
+}
+
+document.addEventListener('keydown', (e) => {
+    // delete selected marker with Delete or Backspace
+    if ((e.key === 'Delete' || e.key === 'Backspace') && selectedClickIndex != null) {
+        deleteSelectedClick();
+        e.preventDefault();
+        return;
+    }
+    // undo / redo shortcuts
+    const meta = e.ctrlKey || e.metaKey;
+    if (meta && e.key.toLowerCase() === 'z') {
+        if (e.shiftKey) { redo(); } else { undo(); }
+        e.preventDefault();
+    } else if (meta && e.key.toLowerCase() === 'y') {
+        redo(); e.preventDefault();
+    }
+});
+
+// Attach generic listeners for sliders and toggles to record undoable changes
+function attachControlHistory() {
+    document.querySelectorAll('.slider').forEach(s => {
+        s.addEventListener('pointerdown', () => { s.dataset._prev = s.value; }, {passive:true});
+        s.addEventListener('change', () => {
+            const prev = s.dataset._prev !== undefined ? s.dataset._prev : s.value;
+            const after = s.value;
+            if (prev !== after) {
+                pushAction({
+                    undo: () => { s.value = prev; s.oninput && s.oninput(); },
+                    redo: () => { s.value = after; s.oninput && s.oninput(); },
+                    desc: `Slider ${s.id} change`
+                });
+            }
+            s.dataset._prev = undefined;
+        }, {passive:true});
+    });
+
+    document.querySelectorAll('.toggle').forEach(t => {
+        // capture state pre-click using mousedown
+        t.addEventListener('mousedown', () => { t.dataset._prev = t.classList.contains('on') ? '1' : '0'; }, {passive:true});
+        t.addEventListener('click', () => {
+            // push action after DOM change (use setTimeout 0 so existing click handlers run first)
+            setTimeout(() => {
+                const prev = t.dataset._prev === '1';
+                const after = t.classList.contains('on');
+                if (prev !== after) {
+                    pushAction({
+                        undo: () => { if (prev) t.classList.add('on'); else t.classList.remove('on'); t.onclick && t.onclick(); },
+                        redo: () => { if (after) t.classList.add('on'); else t.classList.remove('on'); t.onclick && t.onclick(); },
+                        desc: `Toggle ${t.id}`
+                    });
+                }
+                t.dataset._prev = undefined;
+            }, 0);
+        }, {passive:true});
+    });
+}
+
+// add undo/redo/delete UI buttons to top-right of canvas
+(function addTopControls() {
+    // Place undo/redo at the top-right of the app (window chrome), not over the video canvas
+    const container = document.createElement('div');
+    container.style.position = 'fixed';
+    container.style.top = '12px';
+    container.style.right = '18px';
+    container.style.zIndex = '1600';
+    container.style.display = 'flex';
+    container.style.gap = '8px';
+    container.innerHTML = `<button id="undoBtn" title="Undo" class="btn btn-secondary" style="padding:8px 10px;font-size:13px;">⟲</button>
+                           <button id="redoBtn" title="Redo" class="btn btn-secondary" style="padding:8px 10px;font-size:13px;">⟳</button>`;
+    document.body.appendChild(container);
+
+    document.getElementById('undoBtn').onclick = undo;
+    document.getElementById('redoBtn').onclick = redo;
+    updateUndoRedoButtons();
+})();
+
+// Initialize control history attachment after a short delay so DOM is ready
+setTimeout(attachControlHistory, 50);
 
 // Sidebar resizer behavior
 (function() {
