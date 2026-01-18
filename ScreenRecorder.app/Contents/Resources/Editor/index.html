@@ -1,0 +1,1464 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Studio Editor</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
+            min-height: 100vh;
+            color: white;
+            overflow-x: hidden;
+        }
+        .app { display: flex; height: 100vh; }
+        .sidebar {
+            width: 280px;
+            background: rgba(0,0,0,0.4);
+            backdrop-filter: blur(20px);
+            padding: 16px;
+            border-right: 1px solid rgba(255,255,255,0.1);
+            display: flex;
+            flex-direction: column;
+            gap: 14px;
+            overflow-y: auto;
+        }
+        .logo { font-size: 22px; font-weight: 700; background: linear-gradient(90deg, #667eea, #764ba2); -webkit-background-clip: text; -webkit-text-fill-color: transparent; padding: 8px 0; }
+        .section { background: rgba(255,255,255,0.05); border-radius: 10px; padding: 12px; }
+        .section-title { font-size: 11px; text-transform: uppercase; letter-spacing: 1px; color: rgba(255,255,255,0.5); margin-bottom: 10px; }
+        .btn {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            border: none; padding: 10px 16px; border-radius: 8px;
+            color: white; font-weight: 600; cursor: pointer; width: 100%;
+            transition: transform 0.2s, box-shadow 0.2s; font-size: 13px;
+        }
+        .btn:hover { transform: translateY(-1px); box-shadow: 0 6px 20px rgba(102,126,234,0.4); }
+        .btn:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
+        .btn-secondary { background: rgba(255,255,255,0.1); }
+        .btn-secondary:hover { background: rgba(255,255,255,0.15); box-shadow: none; }
+        .main { flex: 1; display: flex; flex-direction: column; padding: 16px; }
+        .canvas-wrap { flex: 1; display: flex; align-items: center; justify-content: center; position: relative; overflow: hidden; }
+        .video-canvas { position: relative; border-radius: 16px; overflow: hidden; box-shadow: 0 30px 60px rgba(0,0,0,0.5); }
+        .gradient-bg {
+            position: absolute; inset: -60px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 50%, #f093fb 100%);
+            background-size: 200% 200%;
+            animation: gradientShift 8s ease infinite;
+        }
+        @keyframes gradientShift { 0%,100% { background-position: 0% 50%; } 50% { background-position: 100% 50%; } }
+        .video-frame {
+            position: relative; z-index: 1;
+            background: #0d0d0d; border-radius: 10px; margin: 40px;
+            overflow: hidden; box-shadow: 0 15px 50px rgba(0,0,0,0.6);
+        }
+        #mainVideo { display: block; max-width: 680px; max-height: 400px; border-radius: 6px; background: #000; }
+        .webcam-wrap {
+            position: absolute; width: 160px; height: 160px;
+            border-radius: 50%; overflow: hidden;
+            border: 3px solid white; box-shadow: 0 8px 25px rgba(0,0,0,0.5);
+            cursor: move; z-index: 10; bottom: 60px; right: 60px;
+            transition: width 0.3s, height 0.3s, border-radius 0.3s;
+        }
+        .webcam-wrap.square { border-radius: 10px; }
+        .webcam-wrap video { width: 100%; height: 100%; object-fit: cover; }
+        .controls {
+            display: flex; align-items: center; gap: 14px; padding: 14px;
+            background: rgba(0,0,0,0.4); backdrop-filter: blur(20px);
+            border-radius: 12px; margin-top: 14px;
+        }
+        .play-btn {
+            width: 42px; height: 42px; border-radius: 50%;
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            border: none; cursor: pointer; display: flex; align-items: center; justify-content: center;
+            flex-shrink: 0;
+        }
+        .play-btn svg { fill: white; width: 16px; height: 16px; }
+        .timeline-wrap { flex: 1; position: relative; }
+        .timeline { height: 6px; background: rgba(255,255,255,0.2); border-radius: 3px; cursor: pointer; position: relative; }
+        .timeline-progress { height: 100%; background: linear-gradient(90deg, #667eea, #764ba2); border-radius: 3px; width: 0%; pointer-events: none; }
+        .timeline-clicks { position: absolute; top: -6px; left: 0; right: 0; height: 18px; pointer-events: none; }
+        .click-marker { position: absolute; width: 10px; height: 10px; background: #f5576c; border-radius: 50%; top: 4px; transform: translateX(-50%); border: 2px solid white; }
+        .time { font-family: monospace; font-size: 12px; color: rgba(255,255,255,0.7); flex-shrink: 0; }
+        .slider-row { display: flex; flex-direction: column; gap: 5px; margin-top: 8px; }
+        .slider-label { display: flex; justify-content: space-between; font-size: 12px; color: rgba(255,255,255,0.8); }
+        .slider { width: 100%; height: 4px; border-radius: 2px; -webkit-appearance: none; background: rgba(255,255,255,0.2); cursor: pointer; }
+        .slider::-webkit-slider-thumb { -webkit-appearance: none; width: 14px; height: 14px; border-radius: 50%; background: linear-gradient(135deg, #667eea, #764ba2); cursor: pointer; }
+        .colors { display: flex; gap: 6px; flex-wrap: wrap; }
+        .swatch {
+            width: 26px; height: 26px; border-radius: 6px; cursor: pointer;
+            border: 2px solid transparent; transition: transform 0.2s, border-color 0.2s;
+        }
+        .swatch:hover, .swatch.active { transform: scale(1.1); border-color: white; }
+        .toggle-row { display: flex; justify-content: space-between; align-items: center; padding: 5px 0; font-size: 13px; }
+        .toggle {
+            width: 38px; height: 20px; background: rgba(255,255,255,0.2);
+            border-radius: 10px; cursor: pointer; position: relative; transition: background 0.3s; flex-shrink: 0;
+        }
+        .toggle.on { background: linear-gradient(90deg, #667eea, #764ba2); }
+        .toggle::after {
+            content: ''; position: absolute; width: 16px; height: 16px;
+            background: white; border-radius: 50%; top: 2px; left: 2px; transition: transform 0.3s;
+        }
+        .toggle.on::after { transform: translateX(18px); }
+        .captions-box { position: absolute; bottom: 80px; left: 50%; transform: translateX(-50%); z-index: 20; text-align: center; pointer-events: none; }
+        .caption { background: rgba(0,0,0,0.85); padding: 8px 16px; border-radius: 6px; font-size: 15px; max-width: 450px; line-height: 1.4; }
+        .hidden { display: none !important; }
+        .caption-list { max-height: 150px; overflow-y: auto; margin-top: 8px; }
+        .caption-item {
+            display: flex; gap: 8px; padding: 6px 8px; background: rgba(255,255,255,0.05);
+            border-radius: 6px; margin-bottom: 4px; font-size: 11px; cursor: pointer;
+            transition: background 0.2s;
+        }
+        .caption-item:hover { background: rgba(255,255,255,0.1); }
+        .caption-item.active { background: rgba(102,126,234,0.3); }
+        .caption-time { color: #667eea; font-family: monospace; white-space: nowrap; }
+        .caption-text { flex: 1; color: rgba(255,255,255,0.9); }
+        .status { font-size: 11px; color: rgba(255,255,255,0.5); text-align: center; padding: 8px; }
+        .modal { position: fixed; inset: 0; background: rgba(0,0,0,0.8); display: none; align-items: center; justify-content: center; z-index: 100; }
+        .modal.show { display: flex; }
+        .modal-box { background: linear-gradient(135deg, #1a1a2e, #16213e); padding: 28px; border-radius: 16px; text-align: center; max-width: 320px; }
+        .modal-box h2 { margin-bottom: 16px; font-size: 18px; }
+        .progress-ring { width: 70px; height: 70px; margin: 12px auto; }
+        .progress-ring circle { fill: none; stroke-width: 5; stroke-linecap: round; }
+        .progress-ring .bg { stroke: rgba(255,255,255,0.1); }
+        .progress-ring .bar { stroke: url(#grad); stroke-dasharray: 201; stroke-dashoffset: 201; transition: stroke-dashoffset 0.3s; }
+    </style>
+</head>
+<body>
+<div class="app">
+    <aside class="sidebar">
+        <div class="logo">✦ Studio Editor</div>
+
+        <div class="section">
+            <div class="section-title">Import Files</div>
+            <input type="file" id="screenFile" hidden accept="video/*">
+            <input type="file" id="webcamFile" hidden accept="video/*">
+            <input type="file" id="clicksFile" hidden accept=".json">
+            <button class="btn btn-secondary" onclick="document.getElementById('screenFile').click()" style="margin-bottom:6px;">Import Screen Recording</button>
+            <button class="btn btn-secondary" onclick="document.getElementById('webcamFile').click()" style="margin-bottom:6px;">Import Webcam</button>
+            <button class="btn btn-secondary" onclick="document.getElementById('clicksFile').click()" style="margin-bottom:6px;">Import Click Data (JSON)</button>
+            <button class="btn" onclick="autoDiscoverFiles()" style="margin-bottom:6px;" title="Select a folder containing session subfolders (each with screen.mp4, webcam.mp4, clicks.json)">Auto-Discover Files</button>
+            <div style="font-size:11px;color:#888;margin-bottom:12px;">Select a folder with session subfolders containing screen.mp4, webcam.mp4, and clicks.json files</div>
+            <div class="status" id="fileStatus">No files loaded</div>
+        </div>
+
+        <div class="section">
+            <div class="section-title">Background</div>
+            <div class="toggle-row"><span>Show Background</span><div class="toggle on" id="bgToggle"></div></div>
+            <div class="colors" id="colorSwatches">
+                <div class="swatch active" style="background:linear-gradient(135deg,#667eea,#764ba2)" data-bg="linear-gradient(135deg,#667eea 0%,#764ba2 50%,#f093fb 100%)"></div>
+                <div class="swatch" style="background:linear-gradient(135deg,#f093fb,#f5576c)" data-bg="linear-gradient(135deg,#f093fb 0%,#f5576c 100%)"></div>
+                <div class="swatch" style="background:linear-gradient(135deg,#4facfe,#00f2fe)" data-bg="linear-gradient(135deg,#4facfe 0%,#00f2fe 100%)"></div>
+                <div class="swatch" style="background:linear-gradient(135deg,#43e97b,#38f9d7)" data-bg="linear-gradient(135deg,#43e97b 0%,#38f9d7 100%)"></div>
+                <div class="swatch" style="background:linear-gradient(135deg,#fa709a,#fee140)" data-bg="linear-gradient(135deg,#fa709a 0%,#fee140 100%)"></div>
+                <div class="swatch" style="background:#0d0d0d" data-bg="#0d0d0d"></div>
+            </div>
+        </div>
+
+        <div class="section">
+            <div class="section-title">Click-to-Zoom</div>
+            <div class="toggle-row"><span>Enable Auto Zoom</span><div class="toggle on" id="zoomToggle"></div></div>
+            <div class="slider-row">
+                <div class="slider-label"><span>Zoom Level</span><span id="zoomVal">2.0x</span></div>
+                <input type="range" class="slider" id="zoomSlider" min="1.2" max="4" step="0.1" value="2">
+            </div>
+            <div class="slider-row">
+                <div class="slider-label"><span>Hold Duration</span><span id="zoomDurVal">1.0s</span></div>
+                <input type="range" class="slider" id="zoomDurSlider" min="0.3" max="3" step="0.1" value="1.0">
+            </div>
+            <div class="slider-row">
+                <div class="slider-label"><span>Anticipation</span><span id="zoomAnticipateVal">0.5s</span></div>
+                <input type="range" class="slider" id="zoomAnticipateSlider" min="0.1" max="1.5" step="0.1" value="0.5">
+            </div>
+            <div class="slider-row">
+                <div class="slider-label"><span>Zoom-In Speed</span><span id="zoomInSpeedVal">0.4s</span></div>
+                <input type="range" class="slider" id="zoomInSpeedSlider" min="0.2" max="1.0" step="0.05" value="0.4">
+            </div>
+            <div class="slider-row">
+                <div class="slider-label"><span>Zoom-Out Speed</span><span id="zoomOutSpeedVal">0.5s</span></div>
+                <input type="range" class="slider" id="zoomOutSpeedSlider" min="0.2" max="1.5" step="0.05" value="0.5">
+            </div>
+            <div class="slider-row">
+                <div class="slider-label"><span>Easing Strength</span><span id="easingVal">0.5</span></div>
+                <input type="range" class="slider" id="easingSlider" min="0" max="1" step="0.1" value="0.5">
+            </div>
+            <div class="slider-row">
+                <div class="slider-label"><span>Pan Speed</span><span id="panSpeedVal">1.0x</span></div>
+                <input type="range" class="slider" id="panSpeedSlider" min="0.3" max="3.0" step="0.1" value="1.0">
+            </div>
+            <div class="slider-row">
+                <div class="slider-label"><span>Pan Easing</span><span id="panEasingVal">0.5</span></div>
+                <input type="range" class="slider" id="panEasingSlider" min="0" max="1" step="0.1" value="0.5">
+            </div>
+            <div class="slider-row">
+                <div class="slider-label"><span>Click/Hold Threshold</span><span id="clickThresholdVal">0.15s</span></div>
+                <input type="range" class="slider" id="clickThresholdSlider" min="0.05" max="0.5" step="0.01" value="0.15">
+            </div>
+            <button class="btn btn-secondary" onclick="addTestClick()" style="margin-bottom:4px;">Add Test Click</button>
+            <button class="btn btn-secondary" onclick="clearClicks()" style="margin-bottom:4px;">Clear Clicks</button>
+            <button class="btn btn-secondary" onclick="downloadClicks()" style="margin-bottom:4px;">Download Clicks</button>
+            <div class="status" id="clickStatus">0 click points detected</div>
+        </div>
+
+        <div class="section">
+            <div class="section-title">Webcam</div>
+            <div class="toggle-row"><span>Show Webcam</span><div class="toggle on" id="webcamToggle"></div></div>
+            <div class="slider-row">
+                <div class="slider-label"><span>Size</span><span id="webcamSizeVal">160px</span></div>
+                <input type="range" class="slider" id="webcamSizeSlider" min="80" max="240" value="160">
+            </div>
+            <div class="toggle-row"><span>Square Shape</span><div class="toggle" id="webcamShapeToggle"></div></div>
+        </div>
+
+        <div class="section">
+            <div class="section-title">Captions</div>
+            <div class="toggle-row"><span>Show Captions</span><div class="toggle" id="captionsToggle"></div></div>
+            <button class="btn btn-secondary" id="transcribeBtn" style="margin-top:8px;">Generate Demo Captions</button>
+            <button class="btn btn-secondary" onclick="importCaptions()" style="margin-top:4px;">Import SRT/VTT File</button>
+            <div class="caption-list hidden" id="captionList"></div>
+            <div class="status">Note: Real transcription requires audio processing backend</div>
+        </div>
+
+        <div style="margin-top:auto; padding-top: 10px;">
+            <button class="btn" id="exportBtn">Export Video</button>
+        </div>
+    </aside>
+
+    <main class="main">
+        <div class="canvas-wrap">
+            <div class="video-canvas" id="canvas">
+                <div class="gradient-bg" id="gradBg"></div>
+                <div class="video-frame" id="videoFrame">
+                    <video id="mainVideo" playsinline></video>
+                </div>
+                <div class="webcam-wrap hidden" id="webcamWrap">
+                    <video id="webcamVideo" playsinline muted></video>
+                </div>
+                <div class="captions-box" id="captionsBox"></div>
+            </div>
+        </div>
+        <div class="controls">
+            <button class="play-btn" id="playBtn">
+                <svg viewBox="0 0 24 24" id="playIcon"><path d="M8 5v14l11-7z"/></svg>
+            </button>
+            <div class="timeline-wrap">
+                <div class="timeline" id="timeline">
+                    <div class="timeline-progress" id="progress"></div>
+                </div>
+                <div class="timeline-clicks" id="clickMarkers"></div>
+            </div>
+            <span class="time" id="timeDisp">0:00 / 0:00</span>
+        </div>
+    </main>
+</div>
+
+<div class="modal" id="exportModal">
+    <div class="modal-box">
+        <h2>Exporting Video</h2>
+        <svg class="progress-ring" viewBox="0 0 100 100">
+            <defs><linearGradient id="grad" x1="0%" y1="0%" x2="100%" y2="0%"><stop offset="0%" stop-color="#667eea"/><stop offset="100%" stop-color="#764ba2"/></linearGradient></defs>
+            <circle class="bg" cx="50" cy="50" r="32"/>
+            <circle class="bar" id="exportBar" cx="50" cy="50" r="32"/>
+        </svg>
+        <p id="exportStatus">Preparing...</p>
+    </div>
+</div>
+
+<script>
+const mainVideo = document.getElementById('mainVideo');
+const webcamVideo = document.getElementById('webcamVideo');
+const webcamWrap = document.getElementById('webcamWrap');
+const videoFrame = document.getElementById('videoFrame');
+const gradBg = document.getElementById('gradBg');
+const progress = document.getElementById('progress');
+const clickMarkers = document.getElementById('clickMarkers');
+const captionsBox = document.getElementById('captionsBox');
+const captionList = document.getElementById('captionList');
+const timeDisp = document.getElementById('timeDisp');
+const fileStatus = document.getElementById('fileStatus');
+const clickStatus = document.getElementById('clickStatus');
+
+let playing = false;
+let zoomEnabled = true;
+let zoomLevel = 2;
+let zoomDuration = 1.0;
+let zoomAnticipate = 0.5;
+let zoomInSpeed = 0.4;
+let zoomOutSpeed = 0.5;
+let easingStrength = 0.5;
+let panSpeed = 1.0;
+let panEasing = 0.5;
+let clickThreshold = 0.15;
+document.getElementById('clickThresholdSlider').oninput = function() {
+    clickThreshold = parseFloat(this.value);
+    document.getElementById('clickThresholdVal').textContent = clickThreshold.toFixed(2) + 's';
+};
+let webcamVisible = true;
+let captionsOn = false;
+let showBackground = true;
+let clicks = [];
+let captions = [];
+let currentBg = 'linear-gradient(135deg,#667eea 0%,#764ba2 50%,#f093fb 100%)';
+
+const params = new URLSearchParams(location.search);
+
+function formatFileName(filename) {
+    if (!filename) return '';
+    // Remove file extension
+    let name = filename.replace(/\.[^/.]+$/, '');
+    // Replace underscores and hyphens with spaces
+    name = name.replace(/[_-]/g, ' ');
+    // Capitalize first letter of each word
+    name = name.replace(/\b\w/g, l => l.toUpperCase());
+    // Truncate if too long
+    return name.length > 25 ? name.substring(0, 22) + '...' : name;
+}
+
+function loadVideo(param, video, label) {
+    const path = params.get(param);
+    if (path) {
+        const decoded = decodeURIComponent(path);
+        video.src = 'file://' + decoded;
+        return decoded.split('/').pop();
+    }
+    return null;
+}
+
+function updateFileStatus() {
+    let status = [];
+    const screenSrc = mainVideo.src;
+    const webcamSrc = webcamVideo.src;
+    
+    if (screenSrc && !screenSrc.includes('blob:')) {
+        const filename = decodeURIComponent(screenSrc).split('/').pop();
+        status.push('📺 ' + formatFileName(filename));
+    } else if (screenSrc) {
+        status.push('📺 Imported Video');
+    }
+    
+    if (webcamSrc && !webcamSrc.includes('blob:')) {
+        const filename = decodeURIComponent(webcamSrc).split('/').pop();
+        status.push('📹 ' + formatFileName(filename));
+    } else if (webcamSrc) {
+        status.push('📹 Imported Webcam');
+    }
+    
+    if (status.length === 0) {
+        fileStatus.textContent = 'No files loaded';
+    } else {
+        fileStatus.textContent = status.join(' | ');
+    }
+}
+
+const screenFile = loadVideo('screen', mainVideo, 'Screen');
+const webcamFile = loadVideo('webcam', webcamVideo, 'Webcam');
+
+updateFileStatus();
+
+if (!webcamFile) webcamWrap.classList.add('hidden');
+
+const clicksPath = params.get('clicks');
+if (clicksPath) {
+    fetch('file://' + decodeURIComponent(clicksPath))
+        .then(r => r.json())
+        .then(data => {
+            clicks = data;
+            clickStatus.textContent = clicks.length + ' click points detected';
+            renderClickMarkers();
+        })
+        .catch(() => clickStatus.textContent = 'No clicks data');
+}
+
+function renderClickMarkers() {
+    clickMarkers.innerHTML = '';
+    const dur = mainVideo.duration || 1;
+    console.log('Rendering click markers - Duration:', dur, 'Clicks:', clicks.length);
+    
+    clicks.forEach((c, i) => {
+        const m = document.createElement('div');
+        m.className = 'click-marker';
+        const percent = (c.time / dur * 100);
+        m.style.left = percent + '%';
+        m.title = 'Click at ' + c.time.toFixed(1) + 's';
+        clickMarkers.appendChild(m);
+        if (i === 0) {
+            console.log('First marker:', {time: c.time, dur, percent: percent + '%'});
+        }
+    });
+    console.log('Rendered', clicks.length, 'markers to', clickMarkers);
+}
+
+mainVideo.onloadedmetadata = () => {
+    renderClickMarkers();
+    updateFileStatus();
+};
+
+async function autoDiscoverFiles() {
+    console.log('Auto-discover button clicked');
+    try {
+        // Check if directory selection is supported
+        const testInput = document.createElement('input');
+        testInput.type = 'file';
+        if (!('webkitdirectory' in testInput)) {
+            fileStatus.textContent = 'Directory selection not supported in this browser. Please use individual file upload buttons.';
+            return;
+        }
+        
+        // Prompt user to select the parent folder containing all sessions
+        const parentInput = document.createElement('input');
+        parentInput.type = 'file';
+        parentInput.webkitdirectory = true;
+        parentInput.multiple = true;
+
+        parentInput.onchange = (e) => {
+            console.log('Files selected:', e.target.files.length);
+            
+            if (e.target.files.length === 0) {
+                fileStatus.textContent = 'No files selected. Please select a folder containing session data.';
+                return;
+            }
+            const files = Array.from(e.target.files);
+            // Find all unique session folders
+            const sessionFolders = {};
+            files.forEach(f => {
+                const parts = f.webkitRelativePath.split('/');
+                if (parts.length >= 2) {
+                    const folder = parts[0];
+                    if (!sessionFolders[folder]) sessionFolders[folder] = [];
+                    sessionFolders[folder].push(f);
+                }
+            });
+
+            console.log('Session folders found:', Object.keys(sessionFolders));
+
+            // Show a list of sessions to pick from
+            const sessionNames = Object.keys(sessionFolders);
+            if (sessionNames.length === 0) {
+                fileStatus.textContent = 'No sessions found in selected folder. Make sure you select a folder containing session subfolders with screen.mp4, webcam.mp4, and clicks.json files.';
+                return;
+            }
+
+            // Create a modal to pick a session
+            let modal = document.getElementById('sessionModal');
+            if (!modal) {
+                modal = document.createElement('div');
+                modal.id = 'sessionModal';
+                modal.style.position = 'fixed';
+                modal.style.inset = '0';
+                modal.style.background = 'rgba(0,0,0,0.8)';
+                modal.style.zIndex = '9999';
+                modal.style.display = 'flex';
+                modal.style.alignItems = 'center';
+                modal.style.justifyContent = 'center';
+                document.body.appendChild(modal);
+            }
+            modal.innerHTML = `<div style='background:#222;padding:32px 24px;border-radius:16px;max-width:340px;text-align:center;'>
+                <h2 style='color:#fff;margin-bottom:18px;'>Select a Session</h2>
+                <div id='sessionList'></div>
+                <button style='margin-top:18px;' class='btn btn-secondary' onclick='document.getElementById("sessionModal").style.display="none"'>Cancel</button>
+            </div>`;
+            modal.style.display = 'flex';
+
+            const sessionList = modal.querySelector('#sessionList');
+            sessionList.innerHTML = '';
+            sessionNames.forEach(name => {
+                const btn = document.createElement('button');
+                btn.className = 'btn btn-secondary';
+                btn.textContent = name;
+                btn.style.margin = '6px 0';
+                btn.onclick = () => {
+                    modal.style.display = 'none';
+                    // Load files from selected session
+                    const sessionFiles = sessionFolders[name];
+                    const screenFile = sessionFiles.find(f => f.name === 'screen.mp4');
+                    const webcamFile = sessionFiles.find(f => f.name === 'webcam.mp4');
+                    const clicksFile = sessionFiles.find(f => f.name === 'clicks.json');
+
+                    let loadedCount = 0;
+                    if (screenFile) {
+                        mainVideo.src = URL.createObjectURL(screenFile);
+                        loadedCount++;
+                    } else {
+                        fileStatus.textContent = 'Warning: screen.mp4 not found in session';
+                    }
+                    
+                    if (webcamFile) {
+                        webcamVideo.src = URL.createObjectURL(webcamFile);
+                        webcamWrap.classList.remove('hidden');
+                        loadedCount++;
+                    }
+                    
+                    if (clicksFile) {
+                        const reader = new FileReader();
+                        reader.onload = (e) => {
+                            try {
+                                clicks = JSON.parse(e.target.result);
+                                clickStatus.textContent = clicks.length + ' click points detected';
+                                renderClickMarkers();
+                                loadedCount++;
+                                updateFileStatus();
+                            } catch (err) {
+                                clickStatus.textContent = 'Invalid click data';
+                            }
+                        };
+                        reader.readAsText(clicksFile);
+                    } else {
+                        clickStatus.textContent = 'No click data found';
+                    }
+
+                    if (loadedCount > 0) {
+                        fileStatus.textContent = `Loaded ${loadedCount} file(s) from session "${name}"`;
+                    } else {
+                        fileStatus.textContent = 'No valid files found in selected session';
+                    }
+                };
+                sessionList.appendChild(btn);
+            });
+        };
+        parentInput.click();
+    } catch (error) {
+        console.error('Auto-discovery failed:', error);
+        fileStatus.textContent = 'Auto-discovery failed: ' + error.message;
+    }
+}
+
+document.getElementById('clicksFile').onchange = e => {
+    if (e.target.files[0]) {
+        const reader = new FileReader();
+        reader.onload = (e) => {
+            try {
+                const data = JSON.parse(e.target.result);
+                // Ensure it's an array
+                clicks = Array.isArray(data) ? data : [data];
+                console.log('JSON Parsed - Clicks loaded:', clicks.length, 'items');
+                console.log('Video duration:', mainVideo.duration);
+                console.log('First click:', clicks[0]);
+                
+                // Always render immediately
+                clickStatus.textContent = clicks.length + ' click points detected';
+                renderClickMarkers();
+                
+                // Also re-render when video loads if it hasn't yet
+                if (!mainVideo.duration) {
+                    mainVideo.addEventListener('loadedmetadata', () => {
+                        console.log('Video loaded, re-rendering clicks');
+                        renderClickMarkers();
+                    }, {once: true});
+                }
+            } catch (err) {
+                clickStatus.textContent = 'Invalid JSON file';
+                console.error('Failed to parse JSON:', err);
+            }
+        };
+        reader.readAsText(e.target.files[0]);
+    }
+};
+
+document.getElementById('screenFile').onchange = e => {
+    if (e.target.files[0]) {
+        mainVideo.src = URL.createObjectURL(e.target.files[0]);
+        // Don't clear clicks - preserve any previously imported click data
+        if (clicks.length === 0) {
+            clickStatus.textContent = '0 click points';
+        }
+        updateFileStatus();
+    }
+};
+
+document.getElementById('webcamFile').onchange = e => {
+    if (e.target.files[0]) {
+        webcamVideo.src = URL.createObjectURL(e.target.files[0]);
+        webcamWrap.classList.remove('hidden');
+        updateFileStatus();
+    }
+};
+
+function fmt(s) { return Math.floor(s/60) + ':' + String(Math.floor(s%60)).padStart(2,'0'); }
+
+let animationFrameId = null;
+
+// Smooth animation loop - runs every frame while playing
+function animationLoop() {
+    if (!playing) {
+        animationFrameId = null;
+        return;
+    }
+    
+    const t = mainVideo.currentTime;
+    
+    // Apply zoom effect every frame for smooth animation
+    const zoomState = calculateZoom(t);
+    applyZoom(zoomState);
+    
+    // Continue the loop
+    animationFrameId = requestAnimationFrame(animationLoop);
+}
+
+document.getElementById('playBtn').onclick = () => {
+    if (playing) {
+        mainVideo.pause(); webcamVideo.pause();
+        document.getElementById('playIcon').innerHTML = '<path d="M8 5v14l11-7z"/>';
+        playing = false;
+        if (animationFrameId) {
+            cancelAnimationFrame(animationFrameId);
+            animationFrameId = null;
+        }
+    } else {
+        mainVideo.play(); webcamVideo.play();
+        document.getElementById('playIcon').innerHTML = '<path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/>';
+        playing = true;
+        // Start the smooth animation loop
+        if (!animationFrameId) {
+            animationFrameId = requestAnimationFrame(animationLoop);
+        }
+    }
+};
+
+mainVideo.ontimeupdate = () => {
+    const t = mainVideo.currentTime, d = mainVideo.duration || 1;
+    progress.style.width = (t/d*100) + '%';
+    timeDisp.textContent = fmt(t) + ' / ' + fmt(d);
+
+    if (captionsOn && captions.length) {
+        const cap = captions.find(c => t >= c.start && t <= c.end);
+        captionsBox.innerHTML = cap ? `<div class="caption">${cap.text}</div>` : '';
+
+        document.querySelectorAll('.caption-item').forEach((el, i) => {
+            el.classList.toggle('active', captions[i] && t >= captions[i].start && t <= captions[i].end);
+        });
+    }
+    
+    // Also apply zoom here for scrubbing/seeking when not playing
+    if (!playing) {
+        const zoomState = calculateZoom(t);
+        applyZoom(zoomState);
+    }
+};
+
+// Custom easing function with adjustable strength
+function ease(t, strength = 0.5) {
+    // strength 0 = linear, 1 = very smooth (ease-in-out)
+    if (strength === 0) return t;
+    const s = strength;
+    // Blend between linear and smooth ease-in-out
+    const smooth = t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2;
+    return t * (1 - s) + smooth * s;
+}
+
+// Calculate zoom state for a given time
+function calculateZoom(t) {
+    if (!zoomEnabled || clicks.length === 0) {
+        return { scale: 1, originX: 50, originY: 50, active: false };
+    }
+
+    // Sort clicks by time and filter out long clicks (swipes, drags, holds, etc.)
+    // Only zoom for clicks with duration <= threshold
+    // Each click must have a .duration property (in seconds)
+    const sortedClicks = [...clicks]
+        .filter(c => (typeof c.duration === 'number' ? c.duration : 1) <= clickThreshold)
+        .sort((a, b) => a.time - b.time);
+    // If no valid clicks, but we are zoomed in, smoothly zoom out
+    if (sortedClicks.length === 0) {
+        // Find if we are currently zoomed in (by checking previous state)
+        // We'll just always zoom out if t > 0 for simplicity
+        if (t > 0) {
+            // Use a fake click at the last known position (or center)
+            const lastClick = clicks.length > 0 ? clicks[clicks.length - 1] : {x:0.5, y:0.5};
+            const progress = Math.min(1, t / zoomOutSpeed);
+            const easedProgress = ease(progress, easingStrength);
+            const scale = zoomLevel - (zoomLevel - 1) * easedProgress;
+            const originX = (lastClick.x || 0.5) * 100 + (50 - (lastClick.x || 0.5) * 100) * easedProgress;
+            const originY = (lastClick.y || 0.5) * 100 + (50 - (lastClick.y || 0.5) * 100) * easedProgress;
+            return { scale, originX, originY, active: true, phase: 'zoom-out' };
+        } else {
+            return { scale: 1, originX: 50, originY: 50, active: false };
+        }
+    }
+    // Build click clusters - group clicks that should be panned between
+    const CLUSTER_GAP = 2.0; // If clicks are within 2 seconds, group them
+    const clusters = [];
+    let currentCluster = [sortedClicks[0]];
+    for (let i = 1; i < sortedClicks.length; i++) {
+        const timeSinceLast = sortedClicks[i].time - currentCluster[currentCluster.length - 1].time;
+        if (timeSinceLast < CLUSTER_GAP) {
+            currentCluster.push(sortedClicks[i]);
+        } else {
+            clusters.push(currentCluster);
+            currentCluster = [sortedClicks[i]];
+        }
+    }
+    clusters.push(currentCluster);
+    
+    // Find which cluster we're in
+    for (const cluster of clusters) {
+        const firstClick = cluster[0];
+        const lastClick = cluster[cluster.length - 1];
+        
+        const clusterStart = firstClick.time - zoomAnticipate;
+        const zoomInEnd = clusterStart + zoomInSpeed;
+        
+        // Calculate cluster end: after last click's hold + zoom out
+        const lastClickReachTime = zoomInEnd; // We reach first click after zoom-in
+        let totalTime = zoomInSpeed; // zoom-in time
+        
+        // Add time for each click in cluster
+        for (let i = 0; i < cluster.length; i++) {
+            totalTime += zoomDuration; // hold at each click
+            if (i < cluster.length - 1) {
+                // Pan to next click - apply pan speed multiplier
+                const basePanTime = Math.max(0.3, cluster[i + 1].time - cluster[i].time);
+                const panTime = basePanTime / panSpeed;
+                totalTime += panTime;
+            }
+        }
+        totalTime += zoomOutSpeed; // zoom-out time
+        
+        const clusterEnd = clusterStart + totalTime;
+        
+        if (t >= clusterStart && t < clusterEnd) {
+            // We're in this cluster
+            let elapsedInCluster = t - clusterStart;
+            
+            // Phase 1: Zoom-in to first click
+            if (elapsedInCluster < zoomInSpeed) {
+                const progress = elapsedInCluster / zoomInSpeed;
+                const easedProgress = ease(progress, easingStrength);
+                const scale = 1 + (zoomLevel - 1) * easedProgress;
+                const originX = 50 + (firstClick.x * 100 - 50) * easedProgress;
+                const originY = 50 + (firstClick.y * 100 - 50) * easedProgress;
+                return { scale, originX, originY, active: true, phase: 'zoom-in' };
+            }
+            
+            elapsedInCluster -= zoomInSpeed;
+            
+            // Phase 2-N: Hold at each click and pan to next
+            for (let i = 0; i < cluster.length; i++) {
+                const click = cluster[i];
+                
+                // Hold at this click
+                if (elapsedInCluster < zoomDuration) {
+                    return {
+                        scale: zoomLevel,
+                        originX: click.x * 100,
+                        originY: click.y * 100,
+                        active: true,
+                        phase: 'hold'
+                    };
+                }
+                elapsedInCluster -= zoomDuration;
+                
+                // Pan to next click (if exists)
+                if (i < cluster.length - 1) {
+                    const nextClick = cluster[i + 1];
+                    const basePanDuration = Math.max(0.3, nextClick.time - click.time);
+                    const panDuration = basePanDuration / panSpeed; // Apply pan speed multiplier
+                    
+                    if (elapsedInCluster < panDuration) {
+                        const progress = elapsedInCluster / panDuration;
+                        const easedProgress = ease(progress, panEasing); // Use separate pan easing
+                        const fromX = click.x * 100;
+                        const fromY = click.y * 100;
+                        const toX = nextClick.x * 100;
+                        const toY = nextClick.y * 100;
+                        return {
+                            scale: zoomLevel,
+                            originX: fromX + (toX - fromX) * easedProgress,
+                            originY: fromY + (toY - fromY) * easedProgress,
+                            active: true,
+                            phase: 'pan'
+                        };
+                    }
+                    elapsedInCluster -= panDuration;
+                }
+            }
+            
+            // Phase Final: Zoom-out from last click
+            if (elapsedInCluster < zoomOutSpeed) {
+                const progress = elapsedInCluster / zoomOutSpeed;
+                const easedProgress = ease(progress, easingStrength);
+                const scale = zoomLevel - (zoomLevel - 1) * easedProgress;
+                const originX = lastClick.x * 100 + (50 - lastClick.x * 100) * easedProgress;
+                const originY = lastClick.y * 100 + (50 - lastClick.y * 100) * easedProgress;
+                return { scale, originX, originY, active: true, phase: 'zoom-out' };
+            }
+        }
+    }
+    
+    return { scale: 1, originX: 50, originY: 50, active: false };
+}
+
+function applyZoom(state) {
+    if (state.active) {
+        mainVideo.style.transformOrigin = `${state.originX}% ${state.originY}%`;
+        mainVideo.style.transform = `scale(${state.scale})`;
+    } else {
+        mainVideo.style.transform = '';
+        mainVideo.style.transformOrigin = 'center center';
+    }
+};
+
+mainVideo.onended = () => {
+    playing = false;
+    document.getElementById('playIcon').innerHTML = '<path d="M8 5v14l11-7z"/>';
+    if (animationFrameId) {
+        cancelAnimationFrame(animationFrameId);
+        animationFrameId = null;
+    }
+    // Reset zoom when video ends
+    mainVideo.style.transform = '';
+    mainVideo.style.transformOrigin = 'center center';
+};
+
+document.getElementById('timeline').onclick = e => {
+    const rect = e.currentTarget.getBoundingClientRect();
+    const pct = (e.clientX - rect.left) / rect.width;
+    mainVideo.currentTime = pct * mainVideo.duration;
+    webcamVideo.currentTime = pct * mainVideo.duration;
+    // Update zoom state when seeking
+    const zoomState = calculateZoom(mainVideo.currentTime);
+    applyZoom(zoomState);
+};
+
+document.querySelectorAll('.swatch').forEach(s => {
+    s.onclick = () => {
+        document.querySelectorAll('.swatch').forEach(x => x.classList.remove('active'));
+        s.classList.add('active');
+        currentBg = s.dataset.bg;
+        gradBg.style.background = currentBg;
+    };
+});
+
+document.getElementById('bgToggle').onclick = function() {
+    this.classList.toggle('on');
+    showBackground = this.classList.contains('on');
+    gradBg.style.display = showBackground ? 'block' : 'none';
+    document.getElementById('colorSwatches').style.opacity = showBackground ? '1' : '0.3';
+};
+
+document.getElementById('zoomToggle').onclick = function() {
+    this.classList.toggle('on');
+    zoomEnabled = this.classList.contains('on');
+    if (!zoomEnabled) {
+        mainVideo.style.transform = '';
+        mainVideo.style.transformOrigin = 'center center';
+    }
+};
+
+document.getElementById('zoomSlider').oninput = function() {
+    zoomLevel = parseFloat(this.value);
+    document.getElementById('zoomVal').textContent = zoomLevel.toFixed(1) + 'x';
+};
+
+document.getElementById('zoomDurSlider').oninput = function() {
+    zoomDuration = parseFloat(this.value);
+    document.getElementById('zoomDurVal').textContent = zoomDuration.toFixed(1) + 's';
+};
+
+document.getElementById('zoomAnticipateSlider').oninput = function() {
+    zoomAnticipate = parseFloat(this.value);
+    document.getElementById('zoomAnticipateVal').textContent = zoomAnticipate.toFixed(1) + 's';
+};
+
+document.getElementById('zoomInSpeedSlider').oninput = function() {
+    zoomInSpeed = parseFloat(this.value);
+    document.getElementById('zoomInSpeedVal').textContent = zoomInSpeed.toFixed(2) + 's';
+};
+
+document.getElementById('zoomOutSpeedSlider').oninput = function() {
+    zoomOutSpeed = parseFloat(this.value);
+    document.getElementById('zoomOutSpeedVal').textContent = zoomOutSpeed.toFixed(2) + 's';
+};
+
+document.getElementById('easingSlider').oninput = function() {
+    easingStrength = parseFloat(this.value);
+    document.getElementById('easingVal').textContent = easingStrength.toFixed(1);
+};
+
+document.getElementById('panSpeedSlider').oninput = function() {
+    panSpeed = parseFloat(this.value);
+    document.getElementById('panSpeedVal').textContent = panSpeed.toFixed(1) + 'x';
+};
+
+document.getElementById('panEasingSlider').oninput = function() {
+    panEasing = parseFloat(this.value);
+    document.getElementById('panEasingVal').textContent = panEasing.toFixed(1);
+};
+
+document.getElementById('webcamToggle').onclick = function() {
+    this.classList.toggle('on');
+    webcamVisible = this.classList.contains('on');
+    webcamWrap.classList.toggle('hidden', !webcamVisible);
+};
+
+document.getElementById('webcamSizeSlider').oninput = function() {
+    const sz = this.value;
+    document.getElementById('webcamSizeVal').textContent = sz + 'px';
+    webcamWrap.style.width = sz + 'px';
+    webcamWrap.style.height = sz + 'px';
+};
+
+document.getElementById('webcamShapeToggle').onclick = function() {
+    this.classList.toggle('on');
+    webcamWrap.classList.toggle('square', this.classList.contains('on'));
+};
+
+document.getElementById('captionsToggle').onclick = function() {
+    this.classList.toggle('on');
+    captionsOn = this.classList.contains('on');
+    if (!captionsOn) captionsBox.innerHTML = '';
+};
+
+let dragging = false, dragOff = {x:0,y:0};
+webcamWrap.onmousedown = e => {
+    dragging = true;
+    const r = webcamWrap.getBoundingClientRect();
+    dragOff = {x: e.clientX - r.left, y: e.clientY - r.top};
+    e.preventDefault();
+};
+document.onmousemove = e => {
+    if (!dragging) return;
+    const canvas = document.getElementById('canvas').getBoundingClientRect();
+    webcamWrap.style.left = (e.clientX - canvas.left - dragOff.x) + 'px';
+    webcamWrap.style.top = (e.clientY - canvas.top - dragOff.y) + 'px';
+    webcamWrap.style.right = 'auto';
+    webcamWrap.style.bottom = 'auto';
+};
+document.onmouseup = () => dragging = false;
+
+function addTestClick() {
+    if (!mainVideo.duration) {
+        clickStatus.textContent = 'Load a video first';
+        return;
+    }
+    
+    // Add a test click at current time or random time
+    const time = mainVideo.currentTime || Math.random() * (mainVideo.duration || 30);
+    const x = 0.3 + Math.random() * 0.4; // Random position in center area
+    const y = 0.3 + Math.random() * 0.4;
+    
+    clicks.push({time, x, y});
+    clickStatus.textContent = clicks.length + ' click points detected';
+    renderClickMarkers();
+}
+
+function clearClicks() {
+    clicks = [];
+    clickStatus.textContent = '0 click points detected';
+    renderClickMarkers();
+}
+
+function downloadClicks() {
+    const data = JSON.stringify(clicks, null, 2);
+    const blob = new Blob([data], {type: 'application/json'});
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = 'clicks_' + new Date().toISOString() + '.json';
+    link.click();
+    URL.revokeObjectURL(url);
+}
+
+function importCaptions() {
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = '.srt,.vtt,.json';
+    input.onchange = (e) => {
+        if (e.target.files[0]) {
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                try {
+                    const content = e.target.result;
+                    if (content.startsWith('{') || content.startsWith('[')) {
+                        // JSON format
+                        captions = JSON.parse(content);
+                    } else {
+                        // SRT/VTT format (simplified parser)
+                        captions = parseSRT(content);
+                    }
+                    
+                    document.getElementById('captionsToggle').classList.add('on');
+                    captionsOn = true;
+                    renderCaptionList();
+                } catch (err) {
+                    console.error('Failed to import captions:', err);
+                }
+            };
+            reader.readAsText(e.target.files[0]);
+        }
+    };
+    input.click();
+}
+
+function parseSRT(content) {
+    // Simple SRT parser
+    const blocks = content.split('\n\n');
+    return blocks.map(block => {
+        const lines = block.trim().split('\n');
+        if (lines.length >= 3) {
+            const timeLine = lines[1];
+            const text = lines.slice(2).join(' ');
+            const times = timeLine.split(' --> ');
+            if (times.length === 2) {
+                return {
+                    start: parseTimeString(times[0].trim()),
+                    end: parseTimeString(times[1].trim()),
+                    text: text
+                };
+            }
+        }
+        return null;
+    }).filter(Boolean);
+}
+
+function parseTimeString(timeStr) {
+    // Parse "00:00:10,500" format
+    const parts = timeStr.replace(',', '.').split(':');
+    return parseInt(parts[0]) * 3600 + parseInt(parts[1]) * 60 + parseFloat(parts[2]);
+}
+
+mainVideo.onclick = e => {
+    const r = mainVideo.getBoundingClientRect();
+    const x = (e.clientX - r.left) / r.width;
+    const y = (e.clientY - r.top) / r.height;
+    clicks.push({time: mainVideo.currentTime, x, y});
+    clickStatus.textContent = clicks.length + ' click points detected';
+    renderClickMarkers();
+};
+
+function renderCaptionList() {
+    captionList.innerHTML = '';
+    captions.forEach((c, i) => {
+        const item = document.createElement('div');
+        item.className = 'caption-item';
+        item.innerHTML = `<span class="caption-time">${fmt(c.start)}</span><span class="caption-text">${c.text}</span>`;
+        item.onclick = () => { mainVideo.currentTime = c.start; };
+        captionList.appendChild(item);
+    });
+    captionList.classList.remove('hidden');
+}
+
+document.getElementById('transcribeBtn').onclick = () => {
+    const btn = document.getElementById('transcribeBtn');
+    btn.textContent = 'Transcribing...';
+    btn.disabled = true;
+
+    const dur = mainVideo.duration || 30;
+    const numCaptions = Math.ceil(dur / 4);
+    captions = [];
+
+    const sampleTexts = [
+        "Welcome to this screen recording demo",
+        "Let me show you how this works",
+        "Click here to open the menu",
+        "Now we'll navigate to settings",
+        "This feature is really useful",
+        "As you can see, it's quite simple",
+        "The interface is intuitive",
+        "Let's move on to the next step",
+        "Here's an important feature",
+        "And that's how it's done"
+    ];
+
+    for (let i = 0; i < numCaptions; i++) {
+        captions.push({
+            start: i * 4,
+            end: Math.min((i + 1) * 4 - 0.5, dur),
+            text: sampleTexts[i % sampleTexts.length]
+        });
+    }
+
+    setTimeout(() => {
+        btn.textContent = 'Regenerate';
+        btn.disabled = false;
+        document.getElementById('captionsToggle').classList.add('on');
+        captionsOn = true;
+        renderCaptionList();
+    }, 1500);
+};
+
+document.getElementById('exportBtn').onclick = async () => {
+    const modal = document.getElementById('exportModal');
+    const bar = document.getElementById('exportBar');
+    const status = document.getElementById('exportStatus');
+    modal.classList.add('show');
+    status.textContent = 'Preparing export...';
+    bar.style.strokeDashoffset = 201;
+
+    try {
+        // WebM-only export. MP4 support removed to avoid corruption and popup prompts.
+        status.textContent = 'Using WebM export (reliable)...';
+        const useWebCodecs = false;
+
+        // Create a canvas to render the composite
+        const exportWidth = 1920;
+        const exportHeight = 1080;
+        const canvas = document.createElement('canvas');
+        canvas.width = exportWidth;
+        canvas.height = exportHeight;
+        const ctx = canvas.getContext('2d');
+
+        // Clone videos for seeking with better buffering
+        const videoClone = document.createElement('video');
+        videoClone.src = mainVideo.src;
+        videoClone.muted = false;  // Don't mute to capture audio
+        videoClone.preload = 'auto';
+        
+        // Ensure video is fully loaded and buffered
+        await new Promise((resolve, reject) => {
+            videoClone.onloadeddata = async () => {
+                // Pre-buffer the video by seeking through it
+                videoClone.currentTime = 0;
+                await new Promise(r => {
+                    const onSeeked = () => {
+                        videoClone.removeEventListener('seeked', onSeeked);
+                        r();
+                    };
+                    videoClone.addEventListener('seeked', onSeeked);
+                });
+                resolve();
+            };
+            videoClone.onerror = reject;
+            videoClone.load();
+        });
+
+        let webcamClone = null;
+        if (webcamVideo.src && webcamVisible) {
+            webcamClone = document.createElement('video');
+            webcamClone.src = webcamVideo.src;
+            webcamClone.muted = false;  // Don't mute to capture audio
+            webcamClone.preload = 'auto';
+            
+            // Ensure webcam video is fully loaded
+            await new Promise((resolve, reject) => {
+                webcamClone.onloadeddata = resolve;
+                webcamClone.onerror = reject;
+                webcamClone.load();
+            });
+        }
+
+        const webcamSize = parseInt(document.getElementById('webcamSizeSlider').value);
+        const webcamSquare = document.getElementById('webcamShapeToggle').classList.contains('on');
+
+        const duration = videoClone.duration;
+        const fps = 60;  // Increased fps for smoother video
+        const totalFrames = Math.floor(duration * fps);
+
+        // Video frame dimensions (maintaining aspect ratio)
+        const videoAspect = videoClone.videoWidth / videoClone.videoHeight;
+        // Reduce padding so the video fills more of the export canvas
+        const bgPadding = showBackground ? 30 : 0;
+        const gradPadding = showBackground ? 10 : 0;
+        const gradRadius = showBackground ? 36 : 0;
+        const videoRadius = showBackground ? 28 : 0;
+        let gradWidth, gradHeight, gradX, gradY;
+        let frameWidth, frameHeight, frameX, frameY;
+        if (showBackground) {
+            // Gradient container
+            gradWidth = exportWidth - bgPadding * 2;
+            gradHeight = exportHeight - bgPadding * 2;
+            gradX = bgPadding;
+            gradY = bgPadding;
+            // Video inside gradient
+            const maxWidth = gradWidth - gradPadding * 2;
+            const maxHeight = gradHeight - gradPadding * 2;
+            if (maxWidth / maxHeight > videoAspect) {
+                frameHeight = maxHeight;
+                frameWidth = frameHeight * videoAspect;
+            } else {
+                frameWidth = maxWidth;
+                frameHeight = frameWidth / videoAspect;
+            }
+            frameX = gradX + (gradWidth - frameWidth) / 2;
+            frameY = gradY + (gradHeight - frameHeight) / 2;
+        } else {
+            // Fullscreen video
+            gradWidth = gradHeight = 0;
+            gradX = gradY = 0;
+            frameWidth = exportWidth;
+            frameHeight = exportHeight;
+            frameX = 0;
+            frameY = 0;
+        }
+
+        
+
+        if (!useWebCodecs) {
+            // WebM path (MediaRecorder) - uses real-time playback for smooth results
+            const stream = canvas.captureStream(fps);
+
+            // Mix audio from the video elements into the canvas stream so
+            // MediaRecorder captures audio. We use an AudioContext with
+            // MediaElementAudioSourceNode -> MediaStreamDestination and
+            // attach the resulting audio tracks to the canvas stream.
+            try {
+                const AudioCtx = window.AudioContext || window.webkitAudioContext;
+                if (AudioCtx) {
+                    const audioCtx = new AudioCtx();
+                    const dest = audioCtx.createMediaStreamDestination();
+                    // Use the cloned media elements (they are loaded above)
+                    try {
+                        const mainSrc = audioCtx.createMediaElementSource(videoClone);
+                        mainSrc.connect(dest);
+                    } catch (e) {
+                        console.warn('Could not create audio source for main video:', e);
+                    }
+                    if (webcamClone) {
+                        try {
+                            const camSrc = audioCtx.createMediaElementSource(webcamClone);
+                            camSrc.connect(dest);
+                        } catch (e) {
+                            console.warn('Could not create audio source for webcam:', e);
+                        }
+                    }
+
+                    // Append audio tracks from the destination to the canvas stream
+                    dest.stream.getAudioTracks().forEach(track => stream.addTrack(track));
+                }
+            } catch (e) {
+                console.warn('Audio mixing not available:', e);
+            }
+
+            let mimeType = 'video/webm;codecs=vp9,opus';
+            if (!MediaRecorder.isTypeSupported(mimeType)) {
+                mimeType = 'video/webm;codecs=vp8,opus';
+            }
+            if (!MediaRecorder.isTypeSupported(mimeType)) {
+                mimeType = 'video/webm';
+            }
+            
+            const mediaRecorder = new MediaRecorder(stream, {
+                mimeType: mimeType,
+                videoBitsPerSecond: 50000000  // Increased bitrate for better quality
+            });
+
+            const recordedChunks = [];
+            mediaRecorder.ondataavailable = e => {
+                if (e.data.size > 0) recordedChunks.push(e.data);
+            };
+
+            const exportPromise = new Promise(resolve => {
+                mediaRecorder.onstop = () => {
+                    const blob = new Blob(recordedChunks, { type: mimeType.split(';')[0] });
+                    resolve(blob);
+                };
+            });
+
+            mediaRecorder.start(100);
+            status.textContent = 'Recording video (WebM)...';
+
+            // Use real-time playback for smooth WebM export
+            videoClone.currentTime = 0;
+            if (webcamClone) webcamClone.currentTime = 0;
+            
+            // Sync webcam with main video
+            const syncWebcam = () => {
+                if (webcamClone && !webcamClone.paused) {
+                    const targetTime = Math.min(videoClone.currentTime, webcamClone.duration - 0.1);
+                    if (Math.abs(webcamClone.currentTime - targetTime) > 0.1) {
+                        webcamClone.currentTime = targetTime;
+                    }
+                }
+            };
+            
+            // Render loop using requestAnimationFrame for smooth capture
+            let lastRenderTime = 0;
+            const renderInterval = 1000 / fps;
+            let frameCount = 0;
+            
+            const renderFrame = () => {
+                const currentTime = videoClone.currentTime;
+                syncWebcam();
+
+                ctx.clearRect(0, 0, exportWidth, exportHeight);
+
+                if (showBackground) {
+                    // Fill the full canvas with the background so transparent/rounded
+                    // corners don't reveal black during export.
+                    if (currentBg.includes('gradient')) {
+                        const fullGrad = ctx.createLinearGradient(0, 0, exportWidth, exportHeight);
+                        const colors = currentBg.match(/#[a-fA-F0-9]{6}/g) || ['#667eea', '#764ba2', '#f093fb'];
+                        colors.forEach((color, i) => {
+                            fullGrad.addColorStop(i / (colors.length - 1), color);
+                        });
+                        ctx.fillStyle = fullGrad;
+                    } else {
+                        ctx.fillStyle = currentBg;
+                    }
+                    ctx.fillRect(0, 0, exportWidth, exportHeight);
+
+                    // Now draw the inner rounded gradient container on top for the framed look
+                    ctx.save();
+                    ctx.beginPath();
+                    ctx.roundRect(gradX, gradY, gradWidth, gradHeight, gradRadius);
+                    ctx.clip();
+                    if (currentBg.includes('gradient')) {
+                        const gradient = ctx.createLinearGradient(gradX, gradY, gradX + gradWidth, gradY + gradHeight);
+                        const colors = currentBg.match(/#[a-fA-F0-9]{6}/g) || ['#667eea', '#764ba2', '#f093fb'];
+                        colors.forEach((color, i) => {
+                            gradient.addColorStop(i / (colors.length - 1), color);
+                        });
+                        ctx.fillStyle = gradient;
+                    } else {
+                        ctx.fillStyle = currentBg;
+                    }
+                    ctx.fillRect(gradX, gradY, gradWidth, gradHeight);
+                    ctx.restore();
+                }
+
+                const zoomState = calculateZoom(currentTime);
+
+                ctx.save();
+                ctx.beginPath();
+                if (showBackground) {
+                    ctx.roundRect(frameX, frameY, frameWidth, frameHeight, videoRadius);
+                } else {
+                    ctx.rect(0, 0, exportWidth, exportHeight);
+                }
+                ctx.clip();
+                if (zoomState.active && zoomState.scale > 1) {
+                    const zoomCenterX = frameX + frameWidth * (zoomState.originX / 100);
+                    const zoomCenterY = frameY + frameHeight * (zoomState.originY / 100);
+                    ctx.translate(zoomCenterX, zoomCenterY);
+                    ctx.scale(zoomState.scale, zoomState.scale);
+                    ctx.translate(-zoomCenterX, -zoomCenterY);
+                }
+                ctx.drawImage(videoClone, frameX, frameY, frameWidth, frameHeight);
+                ctx.restore();
+
+                if (showBackground) {
+                    ctx.save();
+                    ctx.shadowColor = 'rgba(0,0,0,0.3)';
+                    ctx.shadowBlur = 30;
+                    ctx.strokeStyle = 'rgba(255,255,255,0.1)';
+                    ctx.lineWidth = 1;
+                    ctx.beginPath();
+                    ctx.roundRect(frameX, frameY, frameWidth, frameHeight, videoRadius);
+                    ctx.stroke();
+                    ctx.restore();
+                }
+
+                if (webcamClone && webcamVisible) {
+                    const webcamWrap = document.getElementById('webcamWrap');
+                    const previewCanvas = document.getElementById('canvas');
+                    let wcX = 0, wcY = 0, wcExportSize = webcamSize * (exportWidth / 800);
+                    if (webcamWrap && previewCanvas) {
+                        const previewRect = previewCanvas.getBoundingClientRect();
+                        const wrapRect = webcamWrap.getBoundingClientRect();
+                        // Map the webcam position from preview coordinates to export canvas
+                        const scaleX = exportWidth / previewRect.width;
+                        const scaleY = exportHeight / previewRect.height;
+                        wcX = (wrapRect.left - previewRect.left) * scaleX;
+                        wcY = (wrapRect.top - previewRect.top) * scaleY;
+                        wcExportSize = wrapRect.width * scaleX;
+                    } else {
+                        wcX = frameX + frameWidth - wcExportSize - 30;
+                        wcY = frameY + frameHeight - wcExportSize - 30;
+                    }
+                    ctx.save();
+                    ctx.shadowColor = 'rgba(0,0,0,0.5)';
+                    ctx.shadowBlur = 20;
+                    ctx.beginPath();
+                    if (webcamSquare) {
+                        ctx.roundRect(wcX, wcY, wcExportSize, wcExportSize, 12);
+                    } else {
+                        ctx.arc(wcX + wcExportSize/2, wcY + wcExportSize/2, wcExportSize/2, 0, Math.PI * 2);
+                    }
+                    ctx.clip();
+                    const wcAspect = webcamClone.videoWidth / webcamClone.videoHeight;
+                    let srcX = 0, srcY = 0, srcW = webcamClone.videoWidth, srcH = webcamClone.videoHeight;
+                    if (wcAspect > 1) {
+                        srcW = srcH;
+                        srcX = (webcamClone.videoWidth - srcW) / 2;
+                    } else {
+                        srcH = srcW;
+                        srcY = (webcamClone.videoHeight - srcH) / 2;
+                    }
+                    ctx.drawImage(webcamClone, srcX, srcY, srcW, srcH, wcX, wcY, wcExportSize, wcExportSize);
+                    ctx.restore();
+                    ctx.strokeStyle = 'white';
+                    ctx.lineWidth = 4;
+                    ctx.beginPath();
+                    if (webcamSquare) {
+                        ctx.roundRect(wcX, wcY, wcExportSize, wcExportSize, 12);
+                    } else {
+                        ctx.arc(wcX + wcExportSize/2, wcY + wcExportSize/2, wcExportSize/2, 0, Math.PI * 2);
+                    }
+                    ctx.stroke();
+                }
+
+                if (captionsOn && captions.length) {
+                    const cap = captions.find(c => currentTime >= c.start && currentTime <= c.end);
+                    if (cap) {
+                        ctx.font = 'bold 32px -apple-system, BlinkMacSystemFont, sans-serif';
+                        const textWidth = ctx.measureText(cap.text).width;
+                        const capPadding = 20;
+                        const capX = (exportWidth - textWidth) / 2 - capPadding;
+                        const capY = exportHeight - 120;
+                        const capHeight = 50;
+                        ctx.fillStyle = 'rgba(0,0,0,0.85)';
+                        ctx.beginPath();
+                        ctx.roundRect(capX, capY, textWidth + capPadding * 2, capHeight, 8);
+                        ctx.fill();
+                        ctx.fillStyle = 'white';
+                        ctx.textBaseline = 'middle';
+                        ctx.fillText(cap.text, capX + capPadding, capY + capHeight / 2);
+                    }
+                }
+
+                frameCount++;
+                const progressPct = (currentTime / duration) * 100;
+                bar.style.strokeDashoffset = 201 - (201 * progressPct / 100);
+                status.textContent = `Recording: ${Math.round(progressPct)}% (WebM - real-time)`;
+            };
+            
+            // Start playback-based recording
+            await new Promise((resolve) => {
+                let animFrameId;
+                
+                const onEnded = () => {
+                    cancelAnimationFrame(animFrameId);
+                    videoClone.removeEventListener('ended', onEnded);
+                    mediaRecorder.stop();
+                    resolve();
+                };
+                
+                videoClone.addEventListener('ended', onEnded);
+                
+                // Render at display refresh rate
+                const animate = () => {
+                    if (videoClone.paused || videoClone.ended) return;
+                    renderFrame();
+                    animFrameId = requestAnimationFrame(animate);
+                };
+                
+                // Start playback
+                videoClone.play();
+                if (webcamClone) webcamClone.play();
+                animate();
+            });
+            
+            status.textContent = 'Finalizing...';
+
+            const blob = await exportPromise;
+            const url = URL.createObjectURL(blob);
+            const link = document.createElement('a');
+            link.href = url;
+            link.download = `studio_export_${Date.now()}.webm`;
+            link.click();
+            setTimeout(() => URL.revokeObjectURL(url), 1000);
+        }
+
+        status.textContent = 'Export complete!';
+        setTimeout(() => modal.classList.remove('show'), 2000);
+
+    } catch (error) {
+        console.error('Export failed:', error);
+        status.textContent = 'Export failed: ' + error.message;
+        setTimeout(() => modal.classList.remove('show'), 3000);
+    }
+};
+</script>
+</body>
+</html>

@@ -1,0 +1,24 @@
+{
+    "configurations": [
+        {
+            "type": "swift",
+            "request": "launch",
+            "args": [],
+            "cwd": "${workspaceFolder:Screen Recorder}/ScreenRecorder",
+            "name": "Debug ScreenRecorder (ScreenRecorder)",
+            "target": "ScreenRecorder",
+            "configuration": "debug",
+            "preLaunchTask": "swift: Build Debug ScreenRecorder (ScreenRecorder)"
+        },
+        {
+            "type": "swift",
+            "request": "launch",
+            "args": [],
+            "cwd": "${workspaceFolder:Screen Recorder}/ScreenRecorder",
+            "name": "Release ScreenRecorder (ScreenRecorder)",
+            "target": "ScreenRecorder",
+            "configuration": "release",
+            "preLaunchTask": "swift: Build Release ScreenRecorder (ScreenRecorder)"
+        }
+    ]
+}

@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>CFBundleIdentifier</key>
+    <string>com.studio.screenrecorder</string>
+    <key>CFBundleName</key>
+    <string>ScreenRecorder</string>
+    <key>CFBundleExecutable</key>
+    <string>ScreenRecorder</string>
+    <key>CFBundleVersion</key>
+    <string>1.0</string>
+    <key>CFBundleShortVersionString</key>
+    <string>1.0</string>
+    <key>LSUIElement</key>
+    <true/>
+    <key>NSCameraUsageDescription</key>
+    <string>Screen Recorder needs camera access for webcam recording</string>
+    <key>NSMicrophoneUsageDescription</key>
+    <string>Screen Recorder needs microphone access for audio recording</string>
+    <key>NSScreenCaptureUsageDescription</key>
+    <string>Screen Recorder needs screen capture permission to record your screen</string>
+</dict>
+</plist>

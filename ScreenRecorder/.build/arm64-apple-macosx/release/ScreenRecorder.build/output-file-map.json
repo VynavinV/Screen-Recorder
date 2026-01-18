@@ -1,0 +1,13 @@
+{
+  "": {
+    "dependencies": "/Users/vynavin/Documents/Projects/Screen Recorder/ScreenRecorder/.build/arm64-apple-macosx/release/ScreenRecorder.build/ScreenRecorder.d",
+    "object": "/Users/vynavin/Documents/Projects/Screen Recorder/ScreenRecorder/.build/arm64-apple-macosx/release/ScreenRecorder.build/ScreenRecorder.o",
+    "swift-dependencies": "/Users/vynavin/Documents/Projects/Screen Recorder/ScreenRecorder/.build/arm64-apple-macosx/release/ScreenRecorder.build/master.swiftdeps"
+  },
+  "/Users/vynavin/Documents/Projects/Screen Recorder/ScreenRecorder/Sources/main.swift": {
+    "object": "/Users/vynavin/Documents/Projects/Screen Recorder/ScreenRecorder/.build/arm64-apple-macosx/release/ScreenRecorder.build/main.swift.o",
+    "swiftmodule": "/Users/vynavin/Documents/Projects/Screen Recorder/ScreenRecorder/.build/arm64-apple-macosx/release/ScreenRecorder.build/main~partial.swiftmodule",
+    "swift-dependencies": "/Users/vynavin/Documents/Projects/Screen Recorder/ScreenRecorder/.build/arm64-apple-macosx/release/ScreenRecorder.build/main.swiftdeps",
+    "diagnostics": "/Users/vynavin/Documents/Projects/Screen Recorder/ScreenRecorder/.build/arm64-apple-macosx/release/ScreenRecorder.build/main.dia"
+  }
+}
